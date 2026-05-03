@@ -21,8 +21,9 @@ public record KeybindSyncPayload(List<ActionEntry> actions) implements CustomPac
         List<ActionEntry> actions = new ArrayList<>(count);
         for (int i = 0; i < count; i++) {
             String name = buf.readUtf();
+            String displayName = buf.readUtf();
             String defaultKey = buf.readUtf();
-            actions.add(new ActionEntry(name, defaultKey));
+            actions.add(new ActionEntry(name, displayName, defaultKey));
         }
         return new KeybindSyncPayload(actions);
     }
@@ -31,6 +32,7 @@ public record KeybindSyncPayload(List<ActionEntry> actions) implements CustomPac
         buf.writeVarInt(payload.actions.size());
         for (ActionEntry entry : payload.actions) {
             buf.writeUtf(entry.name);
+            buf.writeUtf(entry.displayName);
             buf.writeUtf(entry.defaultKey);
         }
     }
@@ -40,5 +42,5 @@ public record KeybindSyncPayload(List<ActionEntry> actions) implements CustomPac
         return TYPE;
     }
 
-    public record ActionEntry(String name, String defaultKey) {}
+    public record ActionEntry(String name, String displayName, String defaultKey) {}
 }

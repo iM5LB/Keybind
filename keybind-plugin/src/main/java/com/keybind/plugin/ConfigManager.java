@@ -42,6 +42,7 @@ public class ConfigManager {
 
             actions.put(key.toLowerCase(), new ActionConfig(
                     key,
+                    section.getString("display-name", formatDefaultName(key)),
                     section.getString("command", key),
                     section.getString("default-key", ""),
                     section.getString("permission", ""),
@@ -51,6 +52,20 @@ public class ConfigManager {
         }
 
         plugin.getLogger().info("Loaded " + actions.size() + " actions.");
+    }
+
+    private String formatDefaultName(String name) {
+        if (name == null || name.isEmpty()) return "Unknown";
+        String[] parts = name.split("[_\\-]");
+        StringBuilder sb = new StringBuilder();
+        for (String part : parts) {
+            if (!part.isEmpty()) {
+                if (sb.length() > 0) sb.append(" ");
+                sb.append(Character.toUpperCase(part.charAt(0)));
+                if (part.length() > 1) sb.append(part.substring(1).toLowerCase());
+            }
+        }
+        return sb.toString();
     }
 
     public ActionConfig getAction(String name) {
@@ -79,14 +94,16 @@ public class ConfigManager {
 
     public static class ActionConfig {
         private final String name;
+        private final String displayName;
         private final String command;
         private final String defaultKey;
         private final String permission;
         private final long cooldown;
         private final boolean console;
 
-        public ActionConfig(String name, String command, String defaultKey, String permission, long cooldown, boolean console) {
+        public ActionConfig(String name, String displayName, String command, String defaultKey, String permission, long cooldown, boolean console) {
             this.name = name;
+            this.displayName = displayName;
             this.command = command;
             this.defaultKey = defaultKey;
             this.permission = permission;
@@ -95,6 +112,7 @@ public class ConfigManager {
         }
 
         public String getName() { return name; }
+        public String getDisplayName() { return displayName; }
         public String getCommand() { return command; }
         public String getDefaultKey() { return defaultKey; }
         public String getPermission() { return permission; }

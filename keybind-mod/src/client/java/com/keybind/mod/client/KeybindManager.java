@@ -15,6 +15,7 @@ import org.lwjgl.glfw.GLFW;
 
 import java.lang.reflect.Field;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -25,9 +26,14 @@ public class KeybindManager {
             KeyMapping.Category.register(Identifier.fromNamespaceAndPath(KeybindMod.MOD_ID, "server_actions"));
 
     private final Map<String, KeyMapping> registeredMappings = new LinkedHashMap<>();
+    private static final Map<String, String> displayNames = new HashMap<>();
 
     private String currentServer = null;
     private boolean synced = false;
+
+    public static String getDisplayName(String actionName) {
+        return displayNames.get(actionName.toLowerCase());
+    }
 
     public void registerAllKnownActions() {
         Map<String, String> allActions = ServerKeybindStorage.loadAllActions();
@@ -69,17 +75,13 @@ public class KeybindManager {
             
             Minecraft client = Minecraft.getInstance();
             if (client.options == null) {
-                // Still in init phase
                 KeyMappingHelper.registerKeyMapping(mapping);
             } else {
-                // Already in game, use reflection to inject into the final array
                 try {
-                    // Try to find the keyMappings field by name or by type (it's the only KeyMapping array in Options)
                     Field field = null;
                     try {
                         field = Options.class.getDeclaredField("keyMappings");
                     } catch (NoSuchFieldException e) {
-                        // If named field fails (production/obfuscated), search by type
                         for (Field f : Options.class.getDeclaredFields()) {
                             if (f.getType() == KeyMapping[].class) {
                                 field = f;
@@ -97,8 +99,6 @@ public class KeybindManager {
                             KeyMapping.resetMapping();
                             KeybindMod.LOGGER.info("Dynamically registered action: {}", actionName);
                         }
-                    } else {
-                        KeybindMod.LOGGER.error("Could not find keyMappings field in Options class.");
                     }
                 } catch (Exception e) {
                     KeybindMod.LOGGER.error("Failed to dynamically register keybind via reflection", e);
@@ -121,6 +121,8 @@ public class KeybindManager {
         boolean configChanged = false;
 
         for (KeybindSyncPayload.ActionEntry action : actions) {
+            displayNames.put(action.name().toLowerCase(), action.displayName());
+            
             String keyName;
             if (savedBindings.containsKey(action.name())) {
                 keyName = savedBindings.get(action.name());
@@ -156,6 +158,7 @@ public class KeybindManager {
     public void onDisconnect() {
         currentServer = null;
         synced = false;
+        displayNames.clear();
         KeybindMod.LOGGER.info("Disconnected — keybind sync cleared.");
     }
 
@@ -167,7 +170,6 @@ public class KeybindManager {
             String action = entry.getKey();
             KeyMapping mapping = entry.getValue();
 
-            // Detect if the user changed the keybind in the UI
             if (currentServer != null) {
                 String currentKey = mapping.saveString();
                 Map<String, String> saved = ServerKeybindStorage.load(currentServer);
@@ -202,7 +204,7 @@ public class KeybindManager {
     }
 
     static int resolveGlfwKey(String keyName) {
-        return switch (keyName) {
+        return switch (keyName.toUpperCase()) {
             case "A" -> GLFW.GLFW_KEY_A;
             case "B" -> GLFW.GLFW_KEY_B;
             case "C" -> GLFW.GLFW_KEY_C;
@@ -251,38 +253,62 @@ public class KeybindManager {
             case "F10" -> GLFW.GLFW_KEY_F10;
             case "F11" -> GLFW.GLFW_KEY_F11;
             case "F12" -> GLFW.GLFW_KEY_F12;
-            case "LEFT_SHIFT" -> GLFW.GLFW_KEY_LEFT_SHIFT;
-            case "RIGHT_SHIFT" -> GLFW.GLFW_KEY_RIGHT_SHIFT;
-            case "LEFT_CONTROL", "LEFT_CTRL" -> GLFW.GLFW_KEY_LEFT_CONTROL;
-            case "RIGHT_CONTROL", "RIGHT_CTRL" -> GLFW.GLFW_KEY_RIGHT_CONTROL;
-            case "LEFT_ALT" -> GLFW.GLFW_KEY_LEFT_ALT;
-            case "RIGHT_ALT" -> GLFW.GLFW_KEY_RIGHT_ALT;
-            case "SPACE" -> GLFW.GLFW_KEY_SPACE;
-            case "ENTER" -> GLFW.GLFW_KEY_ENTER;
-            case "TAB" -> GLFW.GLFW_KEY_TAB;
-            case "ESCAPE", "ESC" -> GLFW.GLFW_KEY_ESCAPE;
-            case "BACKSPACE" -> GLFW.GLFW_KEY_BACKSPACE;
-            case "DELETE" -> GLFW.GLFW_KEY_DELETE;
-            case "INSERT" -> GLFW.GLFW_KEY_INSERT;
-            case "HOME" -> GLFW.GLFW_KEY_HOME;
-            case "END" -> GLFW.GLFW_KEY_END;
-            case "PAGE_UP" -> GLFW.GLFW_KEY_PAGE_UP;
-            case "PAGE_DOWN" -> GLFW.GLFW_KEY_PAGE_DOWN;
-            case "UP" -> GLFW.GLFW_KEY_UP;
-            case "DOWN" -> GLFW.GLFW_KEY_DOWN;
-            case "LEFT" -> GLFW.GLFW_KEY_LEFT;
-            case "RIGHT" -> GLFW.GLFW_KEY_RIGHT;
-            case "COMMA" -> GLFW.GLFW_KEY_COMMA;
-            case "PERIOD" -> GLFW.GLFW_KEY_PERIOD;
-            case "SEMICOLON" -> GLFW.GLFW_KEY_SEMICOLON;
-            case "APOSTROPHE" -> GLFW.GLFW_KEY_APOSTROPHE;
-            case "MINUS" -> GLFW.GLFW_KEY_MINUS;
-            case "EQUAL" -> GLFW.GLFW_KEY_EQUAL;
             case "LEFT_BRACKET" -> GLFW.GLFW_KEY_LEFT_BRACKET;
             case "RIGHT_BRACKET" -> GLFW.GLFW_KEY_RIGHT_BRACKET;
             case "BACKSLASH" -> GLFW.GLFW_KEY_BACKSLASH;
+            case "SEMICOLON" -> GLFW.GLFW_KEY_SEMICOLON;
+            case "APOSTROPHE" -> GLFW.GLFW_KEY_APOSTROPHE;
+            case "COMMA" -> GLFW.GLFW_KEY_COMMA;
+            case "PERIOD" -> GLFW.GLFW_KEY_PERIOD;
             case "SLASH" -> GLFW.GLFW_KEY_SLASH;
-            case "GRAVE", "GRAVE_ACCENT" -> GLFW.GLFW_KEY_GRAVE_ACCENT;
+            case "GRAVE_ACCENT" -> GLFW.GLFW_KEY_GRAVE_ACCENT;
+            case "MINUS" -> GLFW.GLFW_KEY_MINUS;
+            case "EQUAL" -> GLFW.GLFW_KEY_EQUAL;
+            case "SPACE" -> GLFW.GLFW_KEY_SPACE;
+            case "ENTER" -> GLFW.GLFW_KEY_ENTER;
+            case "TAB" -> GLFW.GLFW_KEY_TAB;
+            case "BACKSPACE" -> GLFW.GLFW_KEY_BACKSPACE;
+            case "INSERT" -> GLFW.GLFW_KEY_INSERT;
+            case "DELETE" -> GLFW.GLFW_KEY_DELETE;
+            case "RIGHT" -> GLFW.GLFW_KEY_RIGHT;
+            case "LEFT" -> GLFW.GLFW_KEY_LEFT;
+            case "DOWN" -> GLFW.GLFW_KEY_DOWN;
+            case "UP" -> GLFW.GLFW_KEY_UP;
+            case "PAGE_UP" -> GLFW.GLFW_KEY_PAGE_UP;
+            case "PAGE_DOWN" -> GLFW.GLFW_KEY_PAGE_DOWN;
+            case "HOME" -> GLFW.GLFW_KEY_HOME;
+            case "END" -> GLFW.GLFW_KEY_END;
+            case "CAPS_LOCK" -> GLFW.GLFW_KEY_CAPS_LOCK;
+            case "SCROLL_LOCK" -> GLFW.GLFW_KEY_SCROLL_LOCK;
+            case "NUM_LOCK" -> GLFW.GLFW_KEY_NUM_LOCK;
+            case "PRINT_SCREEN" -> GLFW.GLFW_KEY_PRINT_SCREEN;
+            case "PAUSE" -> GLFW.GLFW_KEY_PAUSE;
+            case "KP_0" -> GLFW.GLFW_KEY_KP_0;
+            case "KP_1" -> GLFW.GLFW_KEY_KP_1;
+            case "KP_2" -> GLFW.GLFW_KEY_KP_2;
+            case "KP_3" -> GLFW.GLFW_KEY_KP_3;
+            case "KP_4" -> GLFW.GLFW_KEY_KP_4;
+            case "KP_5" -> GLFW.GLFW_KEY_KP_5;
+            case "KP_6" -> GLFW.GLFW_KEY_KP_6;
+            case "KP_7" -> GLFW.GLFW_KEY_KP_7;
+            case "KP_8" -> GLFW.GLFW_KEY_KP_8;
+            case "KP_9" -> GLFW.GLFW_KEY_KP_9;
+            case "KP_DECIMAL" -> GLFW.GLFW_KEY_KP_DECIMAL;
+            case "KP_DIVIDE" -> GLFW.GLFW_KEY_KP_DIVIDE;
+            case "KP_MULTIPLY" -> GLFW.GLFW_KEY_KP_MULTIPLY;
+            case "KP_SUBTRACT" -> GLFW.GLFW_KEY_KP_SUBTRACT;
+            case "KP_ADD" -> GLFW.GLFW_KEY_KP_ADD;
+            case "KP_ENTER" -> GLFW.GLFW_KEY_KP_ENTER;
+            case "KP_EQUAL" -> GLFW.GLFW_KEY_KP_EQUAL;
+            case "LEFT_SHIFT" -> GLFW.GLFW_KEY_LEFT_SHIFT;
+            case "LEFT_CONTROL" -> GLFW.GLFW_KEY_LEFT_CONTROL;
+            case "LEFT_ALT" -> GLFW.GLFW_KEY_LEFT_ALT;
+            case "LEFT_SUPER" -> GLFW.GLFW_KEY_LEFT_SUPER;
+            case "RIGHT_SHIFT" -> GLFW.GLFW_KEY_RIGHT_SHIFT;
+            case "RIGHT_CONTROL" -> GLFW.GLFW_KEY_RIGHT_CONTROL;
+            case "RIGHT_ALT" -> GLFW.GLFW_KEY_RIGHT_ALT;
+            case "RIGHT_SUPER" -> GLFW.GLFW_KEY_RIGHT_SUPER;
+            case "MENU" -> GLFW.GLFW_KEY_MENU;
             default -> GLFW.GLFW_KEY_UNKNOWN;
         };
     }

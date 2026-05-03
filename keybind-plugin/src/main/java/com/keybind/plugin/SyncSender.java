@@ -66,6 +66,7 @@ public class SyncSender implements Listener {
 
             for (ConfigManager.ActionConfig action : actions.values()) {
                 writeString(dos, action.getName());
+                writeString(dos, action.getDisplayName());
                 writeString(dos, action.getDefaultKey());
             }
 
