@@ -3,7 +3,7 @@
 A Minecraft keybind-to-command system: bind keyboard keys to server actions.
 
 **Client Mod** (Fabric, Minecraft 26.1) detects key presses and sends them to the server.
-**Server Plugin** (Paper, Minecraft 26.1) receives triggers and executes configured commands.
+**Server Plugin** (Paper, Minecraft 1.21+) receives triggers and executes configured commands.
 
 ## Architecture
 
