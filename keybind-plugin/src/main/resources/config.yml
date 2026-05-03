@@ -20,13 +20,13 @@ sync-channel: "keybind:sync"
 actions:
   spawn:
     command: "spawn"
-    default-key: "K"
+    default-key: "F6"
     permission: ""
     cooldown: 1000
     console: false
   home:
     command: "home"
-    default-key: "L"
+    default-key: "F7"
     permission: ""
     cooldown: 1000
     console: false

@@ -4,9 +4,10 @@ import com.keybind.mod.KeybindMod;
 import com.keybind.mod.network.KeybindActionPayload;
 import com.keybind.mod.network.KeybindSyncPayload;
 import com.mojang.blaze3d.platform.InputConstants;
-import com.mojang.blaze3d.platform.Window;
-import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
+import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
+import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
+import net.minecraft.resources.Identifier;
 import org.lwjgl.glfw.GLFW;
 
 import java.util.LinkedHashMap;
@@ -15,66 +16,86 @@ import java.util.Map;
 
 public class KeybindManager {
 
-    private final Map<String, Integer> activeBindings = new LinkedHashMap<>();
-    private final Map<String, Boolean> keyStates = new LinkedHashMap<>();
+    /** Category shown in Minecraft's Controls screen under "Keybind (Server)" */
+    private static final KeyMapping.Category KEYBIND_CATEGORY =
+            KeyMapping.Category.register(Identifier.fromNamespaceAndPath(KeybindMod.MOD_ID, "server_actions"));
+
+    /** Registered KeyMapping objects (action name -> KeyMapping) */
+    private final Map<String, KeyMapping> registeredMappings = new LinkedHashMap<>();
+
     private String currentServer = null;
     private boolean synced = false;
 
     /**
      * Called when the server sends an action sync packet.
-     * Sets up keybinds based on server actions + per-server saved config.
+     * Registers (or updates) KeyMapping objects for each action so they appear
+     * in Minecraft's Settings → Controls → Keybinds screen.
      */
     public void onServerSync(String serverAddress, List<KeybindSyncPayload.ActionEntry> actions) {
-        activeBindings.clear();
-        keyStates.clear();
         currentServer = serverAddress;
         synced = true;
 
         // Load saved per-server bindings
         Map<String, String> savedBindings = ServerKeybindStorage.load(serverAddress);
 
-        // Build active bindings: use saved keys if available, otherwise server defaults
+        // Track which bindings we actually set up
         Map<String, String> currentBindings = new LinkedHashMap<>();
+
         for (KeybindSyncPayload.ActionEntry action : actions) {
-            String key;
+            String keyName;
             if (savedBindings != null && savedBindings.containsKey(action.name())) {
-                key = savedBindings.get(action.name());
+                keyName = savedBindings.get(action.name());
             } else {
-                key = action.defaultKey();
+                keyName = action.defaultKey();
             }
 
-            if (key == null || key.isEmpty()) continue;
+            if (keyName == null || keyName.isEmpty()) continue;
 
-            int glfwKey = resolveGlfwKey(key.toUpperCase());
+            int glfwKey = resolveGlfwKey(keyName.toUpperCase());
             if (glfwKey == GLFW.GLFW_KEY_UNKNOWN) {
-                KeybindMod.LOGGER.warn("Unknown key '" + key + "' for action '" + action.name() + "'");
+                KeybindMod.LOGGER.warn("Unknown key '{}' for action '{}'", keyName, action.name());
                 continue;
             }
 
-            activeBindings.put(action.name(), glfwKey);
-            keyStates.put(action.name(), false);
-            currentBindings.put(action.name(), key.toUpperCase());
-            KeybindMod.LOGGER.info("Bound: " + key.toUpperCase() + " -> " + action.name());
+            if (registeredMappings.containsKey(action.name())) {
+                // Already registered — just update the bound key
+                KeyMapping mapping = registeredMappings.get(action.name());
+                mapping.setKey(InputConstants.Type.KEYSYM.getOrCreate(glfwKey));
+                KeyMapping.resetMapping();
+            } else {
+                // First time seeing this action — register a new KeyMapping
+                KeyMapping mapping = KeyMappingHelper.registerKeyMapping(new KeyMapping(
+                        "key.keybind." + action.name(),   // translation key
+                        InputConstants.Type.KEYSYM,
+                        glfwKey,
+                        KEYBIND_CATEGORY
+                ));
+                registeredMappings.put(action.name(), mapping);
+            }
+
+            currentBindings.put(action.name(), keyName.toUpperCase());
+            KeybindMod.LOGGER.info("Bound: {} -> {}", keyName.toUpperCase(), action.name());
         }
 
         // Save current bindings for this server
         ServerKeybindStorage.save(serverAddress, currentBindings);
 
-        KeybindMod.LOGGER.info("Synced " + activeBindings.size() + " keybinds for server: " + serverAddress);
+        KeybindMod.LOGGER.info("Synced {} keybinds for server: {}", registeredMappings.size(), serverAddress);
     }
 
     /**
      * Called when disconnecting from a server.
+     * Clears sync state but keeps KeyMapping registrations alive
+     * (they stay in the Controls screen until the game restarts).
      */
     public void onDisconnect() {
-        activeBindings.clear();
-        keyStates.clear();
         currentServer = null;
         synced = false;
+        KeybindMod.LOGGER.info("Disconnected — keybind sync cleared.");
     }
 
     /**
-     * Called every client tick. Polls key states and sends actions on key press.
+     * Called every client tick. Fires actions when their bound key is pressed.
      */
     public void tick(Minecraft client) {
         if (!synced || client.player == null) return;
@@ -82,21 +103,14 @@ public class KeybindManager {
         // Don't process keybinds while a screen is open (chat, inventory, etc.)
         if (client.screen != null) return;
 
-        Window window = client.getWindow();
-
-        for (Map.Entry<String, Integer> entry : activeBindings.entrySet()) {
+        for (Map.Entry<String, KeyMapping> entry : registeredMappings.entrySet()) {
             String action = entry.getKey();
-            int glfwKey = entry.getValue();
+            KeyMapping mapping = entry.getValue();
 
-            boolean pressed = InputConstants.isKeyDown(window, glfwKey);
-            boolean wasPressed = keyStates.getOrDefault(action, false);
-
-            // Detect key-down edge (pressed this tick, wasn't pressed last tick)
-            if (pressed && !wasPressed) {
+            // consumeClick() returns true once per key-down edge — no manual state tracking needed
+            while (mapping.consumeClick()) {
                 sendAction(client, action);
             }
-
-            keyStates.put(action, pressed);
         }
     }
 
@@ -107,22 +121,20 @@ public class KeybindManager {
     private void sendAction(Minecraft client, String action) {
         if (client.player == null) return;
 
-        if (canSendPacket()) {
-            ClientPlayNetworking.send(new KeybindActionPayload(action));
-            KeybindMod.LOGGER.debug("Sent packet action: " + action);
-        } else {
+        try {
+            net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking.send(
+                    new KeybindActionPayload(action));
+            KeybindMod.LOGGER.debug("Sent packet action: {}", action);
+        } catch (Exception e) {
+            // Fallback: send as chat command
             client.player.connection.sendCommand("kbind " + action);
-            KeybindMod.LOGGER.debug("Sent chat command: /kbind " + action);
+            KeybindMod.LOGGER.debug("Sent chat command: /kbind {}", action);
         }
     }
 
-    private boolean canSendPacket() {
-        try {
-            return ClientPlayNetworking.canSend(KeybindActionPayload.TYPE);
-        } catch (Exception e) {
-            return false;
-        }
-    }
+    // -------------------------------------------------------------------------
+    // Key name → GLFW key code resolver
+    // -------------------------------------------------------------------------
 
     static int resolveGlfwKey(String keyName) {
         return switch (keyName) {
