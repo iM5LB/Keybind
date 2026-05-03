@@ -60,12 +60,24 @@ actions:
 
 ---
 
-## ⌨️ Supported Keys
-Supports all standard keyboard keys:
-- **Letters & Numbers**: `A`-`Z`, `0`-`9`
-- **Function Keys**: `F1`-`F12`
-- **Special Keys**: `SPACE`, `ENTER`, `TAB`, `BACKSPACE`, `INSERT`, `DELETE`, `HOME`, `END`, etc.
-- **Punctuation**: `LEFT_BRACKET`, `RIGHT_BRACKET`, `SEMICOLON`, `PERIOD`, etc.
+## ⌨️ Supported Keys & Mouse Buttons
+The mod supports virtually every input on your keyboard and mouse.
+
+### Keyboard
+- **Alphanumeric**: `A`-`Z`, `0`-`9`
+- **Function Keys**: `F1` through `F25`
+- **Navigation**: `UP`, `DOWN`, `LEFT`, `RIGHT`, `PAGE_UP`, `PAGE_DOWN`, `HOME`, `END`
+- **Special**: `SPACE`, `ENTER`, `TAB`, `BACKSPACE`, `INSERT`, `DELETE`, `ESCAPE`, `PAUSE`
+- **Modifiers**: `LEFT_SHIFT`, `LEFT_CONTROL`, `LEFT_ALT`, `LEFT_SUPER`, `RIGHT_SHIFT`, etc.
+- **Numpad**: `KP_0`-`KP_9`, `KP_ADD`, `KP_ENTER`, `KP_DECIMAL`, etc.
+- **Symbols**: You can use the character directly (e.g., `\`, `/`, `[`, `]`, `,`, `.`, `;`, `'`, `` ` ``, `-`, `=`) or their names (`BACKSLASH`, `SLASH`, etc.).
+
+### Mouse
+Supports standard and multi-button gaming mice:
+- `MOUSE_LEFT` (or `MOUSE_1`)
+- `MOUSE_RIGHT` (or `MOUSE_2`)
+- `MOUSE_MIDDLE` (or `MOUSE_3`)
+- `MOUSE_4` through `MOUSE_8` (Gaming/Side buttons)
 
 ---
 

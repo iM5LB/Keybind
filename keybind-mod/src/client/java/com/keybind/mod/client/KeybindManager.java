@@ -45,27 +45,14 @@ public class KeybindManager {
     }
 
     private void registerAction(String actionName, String keyName) {
-        InputConstants.Key key;
-        try {
-            if (keyName.contains(".")) {
-                key = InputConstants.getKey(keyName);
-            } else {
-                int glfwKey = resolveGlfwKey(keyName.toUpperCase());
-                key = (glfwKey == GLFW.GLFW_KEY_UNKNOWN) 
-                    ? InputConstants.UNKNOWN 
-                    : InputConstants.Type.KEYSYM.getOrCreate(glfwKey);
-            }
-        } catch (Exception e) {
-            KeybindMod.LOGGER.error("Failed to parse key '{}' for action '{}'", keyName, actionName);
-            key = InputConstants.UNKNOWN;
-        }
+        InputConstants.Key key = resolveKey(keyName);
 
         if (registeredMappings.containsKey(actionName)) {
             registeredMappings.get(actionName).setKey(key);
         } else {
             KeyMapping mapping = new KeyMapping(
                     "key.keybind." + actionName,
-                    InputConstants.Type.KEYSYM,
+                    key.getType(),
                     key.getValue(),
                     KEYBIND_CATEGORY
             );
@@ -151,7 +138,6 @@ public class KeybindManager {
         List<String> newActions = new ArrayList<>();
         boolean configChanged = false;
 
-        // Register/Update incoming actions
         for (KeybindSyncPayload.ActionEntry action : actions) {
             String name = action.name();
             incomingActions.add(name);
@@ -173,7 +159,6 @@ public class KeybindManager {
             }
         }
 
-        // Remove old actions that are no longer on the server
         Minecraft client = Minecraft.getInstance();
         Iterator<Map.Entry<String, KeyMapping>> it = registeredMappings.entrySet().iterator();
         while (it.hasNext()) {
@@ -212,9 +197,6 @@ public class KeybindManager {
     public void onDisconnect() {
         currentServer = null;
         synced = false;
-        // We keep registeredMappings so they stay in the Controls menu,
-        // but we clear displayNames to avoid confusion if rejoining a different server.
-        // The mappings will get updated/removed on the next sync.
         KeybindMod.LOGGER.info("Disconnected — keybind sync cleared.");
     }
 
@@ -259,113 +241,163 @@ public class KeybindManager {
         }
     }
 
-    static int resolveGlfwKey(String keyName) {
-        return switch (keyName.toUpperCase()) {
-            case "A" -> GLFW.GLFW_KEY_A;
-            case "B" -> GLFW.GLFW_KEY_B;
-            case "C" -> GLFW.GLFW_KEY_C;
-            case "D" -> GLFW.GLFW_KEY_D;
-            case "E" -> GLFW.GLFW_KEY_E;
-            case "F" -> GLFW.GLFW_KEY_F;
-            case "G" -> GLFW.GLFW_KEY_G;
-            case "H" -> GLFW.GLFW_KEY_H;
-            case "I" -> GLFW.GLFW_KEY_I;
-            case "J" -> GLFW.GLFW_KEY_J;
-            case "K" -> GLFW.GLFW_KEY_K;
-            case "L" -> GLFW.GLFW_KEY_L;
-            case "M" -> GLFW.GLFW_KEY_M;
-            case "N" -> GLFW.GLFW_KEY_N;
-            case "O" -> GLFW.GLFW_KEY_O;
-            case "P" -> GLFW.GLFW_KEY_P;
-            case "Q" -> GLFW.GLFW_KEY_Q;
-            case "R" -> GLFW.GLFW_KEY_R;
-            case "S" -> GLFW.GLFW_KEY_S;
-            case "T" -> GLFW.GLFW_KEY_T;
-            case "U" -> GLFW.GLFW_KEY_U;
-            case "V" -> GLFW.GLFW_KEY_V;
-            case "W" -> GLFW.GLFW_KEY_W;
-            case "X" -> GLFW.GLFW_KEY_X;
-            case "Y" -> GLFW.GLFW_KEY_Y;
-            case "Z" -> GLFW.GLFW_KEY_Z;
-            case "0" -> GLFW.GLFW_KEY_0;
-            case "1" -> GLFW.GLFW_KEY_1;
-            case "2" -> GLFW.GLFW_KEY_2;
-            case "3" -> GLFW.GLFW_KEY_3;
-            case "4" -> GLFW.GLFW_KEY_4;
-            case "5" -> GLFW.GLFW_KEY_5;
-            case "6" -> GLFW.GLFW_KEY_6;
-            case "7" -> GLFW.GLFW_KEY_7;
-            case "8" -> GLFW.GLFW_KEY_8;
-            case "9" -> GLFW.GLFW_KEY_9;
-            case "F1" -> GLFW.GLFW_KEY_F1;
-            case "F2" -> GLFW.GLFW_KEY_F2;
-            case "F3" -> GLFW.GLFW_KEY_F3;
-            case "F4" -> GLFW.GLFW_KEY_F4;
-            case "F5" -> GLFW.GLFW_KEY_F5;
-            case "F6" -> GLFW.GLFW_KEY_F6;
-            case "F7" -> GLFW.GLFW_KEY_F7;
-            case "F8" -> GLFW.GLFW_KEY_F8;
-            case "F9" -> GLFW.GLFW_KEY_F9;
-            case "F10" -> GLFW.GLFW_KEY_F10;
-            case "F11" -> GLFW.GLFW_KEY_F11;
-            case "F12" -> GLFW.GLFW_KEY_F12;
-            case "[", "LEFT_BRACKET" -> GLFW.GLFW_KEY_LEFT_BRACKET;
-            case "]", "RIGHT_BRACKET" -> GLFW.GLFW_KEY_RIGHT_BRACKET;
-            case "\\", "BACKSLASH" -> GLFW.GLFW_KEY_BACKSLASH;
-            case ";", "SEMICOLON" -> GLFW.GLFW_KEY_SEMICOLON;
-            case "'", "APOSTROPHE" -> GLFW.GLFW_KEY_APOSTROPHE;
-            case ",", "COMMA" -> GLFW.GLFW_KEY_COMMA;
-            case ".", "PERIOD" -> GLFW.GLFW_KEY_PERIOD;
-            case "/", "SLASH" -> GLFW.GLFW_KEY_SLASH;
-            case "`", "GRAVE_ACCENT" -> GLFW.GLFW_KEY_GRAVE_ACCENT;
-            case "-", "MINUS" -> GLFW.GLFW_KEY_MINUS;
-            case "=", "EQUAL" -> GLFW.GLFW_KEY_EQUAL;
-            case "SPACE" -> GLFW.GLFW_KEY_SPACE;
-            case "ENTER" -> GLFW.GLFW_KEY_ENTER;
-            case "TAB" -> GLFW.GLFW_KEY_TAB;
-            case "BACKSPACE" -> GLFW.GLFW_KEY_BACKSPACE;
-            case "INSERT" -> GLFW.GLFW_KEY_INSERT;
-            case "DELETE" -> GLFW.GLFW_KEY_DELETE;
-            case "RIGHT" -> GLFW.GLFW_KEY_RIGHT;
-            case "LEFT" -> GLFW.GLFW_KEY_LEFT;
-            case "DOWN" -> GLFW.GLFW_KEY_DOWN;
-            case "UP" -> GLFW.GLFW_KEY_UP;
-            case "PAGE_UP" -> GLFW.GLFW_KEY_PAGE_UP;
-            case "PAGE_DOWN" -> GLFW.GLFW_KEY_PAGE_DOWN;
-            case "HOME" -> GLFW.GLFW_KEY_HOME;
-            case "END" -> GLFW.GLFW_KEY_END;
-            case "CAPS_LOCK" -> GLFW.GLFW_KEY_CAPS_LOCK;
-            case "SCROLL_LOCK" -> GLFW.GLFW_KEY_SCROLL_LOCK;
-            case "NUM_LOCK" -> GLFW.GLFW_KEY_NUM_LOCK;
-            case "PRINT_SCREEN" -> GLFW.GLFW_KEY_PRINT_SCREEN;
-            case "PAUSE" -> GLFW.GLFW_KEY_PAUSE;
-            case "KP_0" -> GLFW.GLFW_KEY_KP_0;
-            case "KP_1" -> GLFW.GLFW_KEY_KP_1;
-            case "KP_2" -> GLFW.GLFW_KEY_KP_2;
-            case "KP_3" -> GLFW.GLFW_KEY_KP_3;
-            case "KP_4" -> GLFW.GLFW_KEY_KP_4;
-            case "KP_5" -> GLFW.GLFW_KEY_KP_5;
-            case "KP_6" -> GLFW.GLFW_KEY_KP_6;
-            case "KP_7" -> GLFW.GLFW_KEY_KP_7;
-            case "KP_8" -> GLFW.GLFW_KEY_KP_8;
-            case "KP_9" -> GLFW.GLFW_KEY_KP_9;
-            case "KP_DECIMAL" -> GLFW.GLFW_KEY_KP_DECIMAL;
-            case "KP_DIVIDE" -> GLFW.GLFW_KEY_KP_DIVIDE;
-            case "KP_MULTIPLY" -> GLFW.GLFW_KEY_KP_MULTIPLY;
-            case "KP_SUBTRACT" -> GLFW.GLFW_KEY_KP_SUBTRACT;
-            case "KP_ADD" -> GLFW.GLFW_KEY_KP_ADD;
-            case "KP_ENTER" -> GLFW.GLFW_KEY_KP_ENTER;
-            case "KP_EQUAL" -> GLFW.GLFW_KEY_KP_EQUAL;
-            case "LEFT_SHIFT" -> GLFW.GLFW_KEY_LEFT_SHIFT;
-            case "LEFT_CONTROL" -> GLFW.GLFW_KEY_LEFT_CONTROL;
-            case "LEFT_ALT" -> GLFW.GLFW_KEY_LEFT_ALT;
-            case "LEFT_SUPER" -> GLFW.GLFW_KEY_LEFT_SUPER;
-            case "RIGHT_SHIFT" -> GLFW.GLFW_KEY_RIGHT_SHIFT;
-            case "RIGHT_CONTROL" -> GLFW.GLFW_KEY_RIGHT_CONTROL;
-            case "RIGHT_ALT" -> GLFW.GLFW_KEY_RIGHT_ALT;
-            case "RIGHT_SUPER" -> GLFW.GLFW_KEY_RIGHT_SUPER;
-            case "MENU" -> GLFW.GLFW_KEY_MENU;
-            default -> GLFW.GLFW_KEY_UNKNOWN;
+    private InputConstants.Key resolveKey(String keyName) {
+        if (keyName == null || keyName.isEmpty()) return InputConstants.UNKNOWN;
+        String name = keyName.toUpperCase();
+
+        // Check for internal Minecraft key strings first
+        if (name.contains(".")) {
+            try {
+                return InputConstants.getKey(keyName);
+            } catch (Exception ignored) {}
+        }
+
+        // Mouse Buttons
+        return switch (name) {
+            case "MOUSE_LEFT", "MOUSE_1" -> InputConstants.Type.MOUSE.getOrCreate(0);
+            case "MOUSE_RIGHT", "MOUSE_2" -> InputConstants.Type.MOUSE.getOrCreate(1);
+            case "MOUSE_MIDDLE", "MOUSE_3" -> InputConstants.Type.MOUSE.getOrCreate(2);
+            case "MOUSE_4" -> InputConstants.Type.MOUSE.getOrCreate(3);
+            case "MOUSE_5" -> InputConstants.Type.MOUSE.getOrCreate(4);
+            case "MOUSE_6" -> InputConstants.Type.MOUSE.getOrCreate(5);
+            case "MOUSE_7" -> InputConstants.Type.MOUSE.getOrCreate(6);
+            case "MOUSE_8" -> InputConstants.Type.MOUSE.getOrCreate(7);
+
+            // Function Keys
+            case "F1" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_F1);
+            case "F2" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_F2);
+            case "F3" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_F3);
+            case "F4" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_F4);
+            case "F5" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_F5);
+            case "F6" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_F6);
+            case "F7" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_F7);
+            case "F8" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_F8);
+            case "F9" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_F9);
+            case "F10" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_F10);
+            case "F11" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_F11);
+            case "F12" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_F12);
+            case "F13" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_F13);
+            case "F14" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_F14);
+            case "F15" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_F15);
+            case "F16" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_F16);
+            case "F17" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_F17);
+            case "F18" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_F18);
+            case "F19" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_F19);
+            case "F20" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_F20);
+            case "F21" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_F21);
+            case "F22" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_F22);
+            case "F23" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_F23);
+            case "F24" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_F24);
+            case "F25" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_F25);
+
+            // Alphanumeric
+            case "A" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_A);
+            case "B" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_B);
+            case "C" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_C);
+            case "D" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_D);
+            case "E" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_E);
+            case "F" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_F);
+            case "G" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_G);
+            case "H" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_H);
+            case "I" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_I);
+            case "J" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_J);
+            case "K" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_K);
+            case "L" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_L);
+            case "M" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_M);
+            case "N" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_N);
+            case "O" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_O);
+            case "P" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_P);
+            case "Q" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_Q);
+            case "R" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_R);
+            case "S" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_S);
+            case "T" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_T);
+            case "U" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_U);
+            case "V" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_V);
+            case "W" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_W);
+            case "X" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_X);
+            case "Y" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_Y);
+            case "Z" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_Z);
+            case "0" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_0);
+            case "1" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_1);
+            case "2" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_2);
+            case "3" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_3);
+            case "4" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_4);
+            case "5" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_5);
+            case "6" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_6);
+            case "7" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_7);
+            case "8" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_8);
+            case "9" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_9);
+
+            // Symbols
+            case "[", "LEFT_BRACKET" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_LEFT_BRACKET);
+            case "]", "RIGHT_BRACKET" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_RIGHT_BRACKET);
+            case "\\", "BACKSLASH" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_BACKSLASH);
+            case ";", "SEMICOLON" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_SEMICOLON);
+            case "'", "APOSTROPHE" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_APOSTROPHE);
+            case ",", "COMMA" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_COMMA);
+            case ".", "PERIOD" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_PERIOD);
+            case "/", "SLASH" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_SLASH);
+            case "`", "GRAVE_ACCENT" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_GRAVE_ACCENT);
+            case "-", "MINUS" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_MINUS);
+            case "=", "EQUAL" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_EQUAL);
+
+            // Navigation & Special
+            case "SPACE" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_SPACE);
+            case "ENTER" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_ENTER);
+            case "TAB" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_TAB);
+            case "BACKSPACE" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_BACKSPACE);
+            case "INSERT" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_INSERT);
+            case "DELETE" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_DELETE);
+            case "RIGHT" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_RIGHT);
+            case "LEFT" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_LEFT);
+            case "DOWN" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_DOWN);
+            case "UP" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_UP);
+            case "PAGE_UP" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_PAGE_UP);
+            case "PAGE_DOWN" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_PAGE_DOWN);
+            case "HOME" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_HOME);
+            case "END" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_END);
+            case "ESCAPE" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_ESCAPE);
+            case "CAPS_LOCK" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_CAPS_LOCK);
+            case "SCROLL_LOCK" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_SCROLL_LOCK);
+            case "NUM_LOCK" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_NUM_LOCK);
+            case "PRINT_SCREEN" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_PRINT_SCREEN);
+            case "PAUSE" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_PAUSE);
+
+            // Numpad
+            case "KP_0" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_KP_0);
+            case "KP_1" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_KP_1);
+            case "KP_2" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_KP_2);
+            case "KP_3" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_KP_3);
+            case "KP_4" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_KP_4);
+            case "KP_5" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_KP_5);
+            case "KP_6" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_KP_6);
+            case "KP_7" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_KP_7);
+            case "KP_8" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_KP_8);
+            case "KP_9" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_KP_9);
+            case "KP_DECIMAL" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_KP_DECIMAL);
+            case "KP_DIVIDE" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_KP_DIVIDE);
+            case "KP_MULTIPLY" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_KP_MULTIPLY);
+            case "KP_SUBTRACT" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_KP_SUBTRACT);
+            case "KP_ADD" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_KP_ADD);
+            case "KP_ENTER" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_KP_ENTER);
+            case "KP_EQUAL" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_KP_EQUAL);
+
+            // Modifiers
+            case "LEFT_SHIFT" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_LEFT_SHIFT);
+            case "LEFT_CONTROL", "LEFT_CTRL" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_LEFT_CONTROL);
+            case "LEFT_ALT" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_LEFT_ALT);
+            case "LEFT_SUPER" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_LEFT_SUPER);
+            case "RIGHT_SHIFT" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_RIGHT_SHIFT);
+            case "RIGHT_CONTROL", "RIGHT_CTRL" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_RIGHT_CONTROL);
+            case "RIGHT_ALT" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_RIGHT_ALT);
+            case "RIGHT_SUPER" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_RIGHT_SUPER);
+            case "MENU" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_MENU);
+
+            // World Keys
+            case "WORLD_1" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_WORLD_1);
+            case "WORLD_2" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_WORLD_2);
+
+            default -> InputConstants.UNKNOWN;
         };
     }
 }
