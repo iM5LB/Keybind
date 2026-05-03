@@ -32,6 +32,7 @@ public class KeybindManager {
     private boolean synced = false;
 
     public static String getDisplayName(String actionName) {
+        if (actionName == null) return null;
         return displayNames.get(actionName.toLowerCase());
     }
 

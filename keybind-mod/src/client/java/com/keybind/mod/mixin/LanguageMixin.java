@@ -9,9 +9,9 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 @Mixin(Language.class)
 public class LanguageMixin {
-    @Inject(method = "getOrDefault(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;", at = @At("HEAD"), cancellable = true)
-    private void onGetOrDefault(String id, String defaultValue, CallbackInfoReturnable<String> cir) {
-        if (id.startsWith("key.keybind.")) {
+    @Inject(method = "getOrDefault(Ljava/lang/String;)Ljava/lang/String;", at = @At("HEAD"), cancellable = true)
+    private void onGetOrDefault(String id, CallbackInfoReturnable<String> cir) {
+        if (id != null && id.startsWith("key.keybind.")) {
             String actionName = id.substring("key.keybind.".length());
             String displayName = KeybindManager.getDisplayName(actionName);
             if (displayName != null) {
