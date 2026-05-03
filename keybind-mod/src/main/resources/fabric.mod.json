@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "id": "keybind-mod",
+  "version": "${version}",
+
+  "name": "Keybind Mod",
+  "description": "Bind keys to server actions. Works with the Keybind server plugin.",
+  "authors": [
+    "iM5LB"
+  ],
+  "contact": {
+    "sources": "https://github.com/iM5LB/Keybind"
+  },
+  "license": "MIT",
+
+  "environment": "*",
+  "entrypoints": {
+    "main": [
+      "com.keybind.mod.KeybindMod"
+    ],
+    "client": [
+      "com.keybind.mod.client.KeybindModClient"
+    ]
+  },
+  "mixins": [],
+
+  "depends": {
+    "fabricloader": ">=0.18.4",
+    "minecraft": "~26.1",
+    "java": ">=25",
+    "fabric-api": "*"
+  }
+}

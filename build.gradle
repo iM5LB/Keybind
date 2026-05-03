@@ -1,0 +1,10 @@
+allprojects {
+    group = 'com.keybind'
+    version = '1.0.0'
+}
+
+subprojects {
+    repositories {
+        mavenCentral()
+    }
+}
