@@ -10,12 +10,12 @@ import org.slf4j.LoggerFactory;
 
 public class KeybindMod implements ModInitializer {
 
-    public static final String MOD_ID = "keybind-mod";
+    public static final String MOD_ID = "keybind";
     public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
     public static ModConfig CONFIG;
 
-    public static final Identifier CHANNEL = Identifier.fromNamespaceAndPath("keybind", "main");
-    public static final Identifier SYNC_CHANNEL = Identifier.fromNamespaceAndPath("keybind", "sync");
+    public static final Identifier CHANNEL = Identifier.fromNamespaceAndPath(MOD_ID, "main");
+    public static final Identifier SYNC_CHANNEL = Identifier.fromNamespaceAndPath(MOD_ID, "sync");
 
     @Override
     public void onInitialize() {
@@ -31,6 +31,6 @@ public class KeybindMod implements ModInitializer {
                 KeybindSyncPayload.STREAM_CODEC
         );
 
-        LOGGER.info("Keybind Mod initialized.");
+        LOGGER.info("Keybind initialized.");
     }
 }

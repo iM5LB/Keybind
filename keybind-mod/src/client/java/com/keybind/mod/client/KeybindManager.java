@@ -23,7 +23,7 @@ import java.util.Map;
 public class KeybindManager {
 
     private static final KeyMapping.Category KEYBIND_CATEGORY =
-            KeyMapping.Category.register(Identifier.fromNamespaceAndPath(KeybindMod.MOD_ID, "server_actions"));
+            KeyMapping.Category.register(Identifier.fromNamespaceAndPath(KeybindMod.MOD_ID, "actions"));
 
     private final Map<String, KeyMapping> registeredMappings = new LinkedHashMap<>();
     private static final Map<String, String> displayNames = new HashMap<>();

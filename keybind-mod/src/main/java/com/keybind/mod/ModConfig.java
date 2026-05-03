@@ -12,7 +12,7 @@ import java.nio.file.Path;
 
 public class ModConfig {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
-    private static final Path CONFIG_FILE = FabricLoader.getInstance().getConfigDir().resolve("keybind-mod.json");
+    private static final Path CONFIG_FILE = FabricLoader.getInstance().getConfigDir().resolve("keybind.json");
 
     public String channel = "keybind:main";
     public String syncChannel = "keybind:sync";

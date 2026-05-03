@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
-  "id": "keybind-mod",
+  "id": "keybind",
   "version": "${version}",
 
-  "name": "Keybind Mod",
+  "name": "Keybind",
   "description": "Bind keys to server actions. Works with the Keybind server plugin.",
   "authors": [
     "iM5LB"
