@@ -24,34 +24,38 @@ public class ConfigManager {
     }
 
     public void reload() {
-        plugin.reloadConfig();
-        FileConfiguration config = plugin.getConfig();
+        try {
+            plugin.reloadConfig();
+            FileConfiguration config = plugin.getConfig();
 
-        globalCooldown = config.getLong("global-cooldown", 500);
+            globalCooldown = config.getLong("global-cooldown", 500);
 
-        actions.clear();
-        ConfigurationSection actionsSection = config.getConfigurationSection("actions");
-        if (actionsSection == null) {
-            plugin.getLogger().warning("No actions defined in config.yml!");
-            return;
+            actions.clear();
+            ConfigurationSection actionsSection = config.getConfigurationSection("actions");
+            if (actionsSection == null) {
+                plugin.getLogger().warning("No actions defined in config.yml!");
+                return;
+            }
+
+            for (String key : actionsSection.getKeys(false)) {
+                ConfigurationSection section = actionsSection.getConfigurationSection(key);
+                if (section == null) continue;
+
+                actions.put(key.toLowerCase(), new ActionConfig(
+                        key,
+                        section.getString("display-name", formatDefaultName(key)),
+                        section.getString("command", key),
+                        section.getString("default-key", ""),
+                        section.getString("permission", ""),
+                        section.getLong("cooldown", globalCooldown),
+                        section.getBoolean("console", false)
+                ));
+            }
+
+            plugin.getLogger().info("Successfully loaded " + actions.size() + " actions.");
+        } catch (Exception e) {
+            plugin.getLogger().severe("Failed to load configuration! Please check for syntax errors: " + e.getMessage());
         }
-
-        for (String key : actionsSection.getKeys(false)) {
-            ConfigurationSection section = actionsSection.getConfigurationSection(key);
-            if (section == null) continue;
-
-            actions.put(key.toLowerCase(), new ActionConfig(
-                    key,
-                    section.getString("display-name", formatDefaultName(key)),
-                    section.getString("command", key),
-                    section.getString("default-key", ""),
-                    section.getString("permission", ""),
-                    section.getLong("cooldown", globalCooldown),
-                    section.getBoolean("console", false)
-            ));
-        }
-
-        plugin.getLogger().info("Loaded " + actions.size() + " actions.");
     }
 
     private String formatDefaultName(String name) {
