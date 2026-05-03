@@ -1,13 +1,13 @@
 package com.keybind.mod.client;
 
 import com.keybind.mod.KeybindMod;
-import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
+import com.keybind.mod.network.KeybindActionPayload;
+import com.mojang.blaze3d.platform.InputConstants;
+import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
+import net.minecraft.resources.Identifier;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
-import net.fabricmc.fabric.api.networking.v1.PacketByteBufs;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.option.KeyBinding;
-import net.minecraft.client.util.InputUtil;
-import net.minecraft.network.PacketByteBuf;
+import net.minecraft.client.KeyMapping;
+import net.minecraft.client.Minecraft;
 import org.lwjgl.glfw.GLFW;
 
 import java.util.ArrayList;
@@ -16,7 +16,8 @@ import java.util.Map;
 
 public class KeybindManager {
 
-    private static final String KEYBIND_CATEGORY = "category.keybind.actions";
+    private static final KeyMapping.Category KEYBIND_CATEGORY =
+            KeyMapping.Category.register(Identifier.fromNamespaceAndPath("keybind", "actions"));
 
     private final KeybindConfigManager configManager;
     private final List<KeybindEntry> entries = new ArrayList<>();
@@ -39,14 +40,14 @@ public class KeybindManager {
                 continue;
             }
 
-            KeyBinding keyBinding = KeyBindingHelper.registerKeyBinding(new KeyBinding(
+            KeyMapping keyMapping = KeyMappingHelper.registerKeyMapping(new KeyMapping(
                     "key.keybind." + action,
-                    InputUtil.Type.KEYSYM,
+                    InputConstants.Type.KEYSYM,
                     glfwKey,
                     KEYBIND_CATEGORY
             ));
 
-            entries.add(new KeybindEntry(keyBinding, action));
+            entries.add(new KeybindEntry(keyMapping, action));
             KeybindMod.LOGGER.info("Registered keybind: " + keyName + " -> " + action);
         }
     }
@@ -55,9 +56,9 @@ public class KeybindManager {
      * Called every client tick. Checks if any registered keybind was pressed
      * and sends the corresponding action.
      */
-    public void tick(MinecraftClient client) {
+    public void tick(Minecraft client) {
         for (KeybindEntry entry : entries) {
-            while (entry.keyBinding.wasPressed()) {
+            while (entry.keyMapping.consumeClick()) {
                 sendAction(client, entry.action);
             }
         }
@@ -66,18 +67,14 @@ public class KeybindManager {
     /**
      * Send the action to the server, either via packet or chat command.
      */
-    private void sendAction(MinecraftClient client, String action) {
+    private void sendAction(Minecraft client, String action) {
         if (client.player == null) return;
 
         if (configManager.usePackets() && canSendPacket()) {
-            // Packet-based communication (preferred)
-            PacketByteBuf buf = PacketByteBufs.create();
-            buf.writeString(action);
-            ClientPlayNetworking.send(KeybindMod.CHANNEL, buf);
+            ClientPlayNetworking.send(new KeybindActionPayload(action));
             KeybindMod.LOGGER.debug("Sent packet action: " + action);
         } else {
-            // Fallback: chat command
-            client.player.networkHandler.sendChatCommand("kbind " + action);
+            client.player.connection.sendCommand("kbind " + action);
             KeybindMod.LOGGER.debug("Sent chat command: /kbind " + action);
         }
     }
@@ -87,7 +84,7 @@ public class KeybindManager {
      */
     private boolean canSendPacket() {
         try {
-            return ClientPlayNetworking.canSend(KeybindMod.CHANNEL);
+            return ClientPlayNetworking.canSend(KeybindActionPayload.TYPE);
         } catch (Exception e) {
             return false;
         }
@@ -182,5 +179,5 @@ public class KeybindManager {
         };
     }
 
-    private record KeybindEntry(KeyBinding keyBinding, String action) {}
+    private record KeybindEntry(KeyMapping keyMapping, String action) {}
 }

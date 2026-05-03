@@ -2,8 +2,8 @@
 
 A Minecraft keybind-to-command system: bind keyboard keys to server actions.
 
-**Client Mod** (Fabric 1.20.4) detects key presses and sends them to the server.
-**Server Plugin** (Paper 1.20.4) receives triggers and executes configured commands.
+**Client Mod** (Fabric, Minecraft 26.1) detects key presses and sends them to the server.
+**Server Plugin** (Paper, Minecraft 26.1) receives triggers and executes configured commands.
 
 ## Architecture
 
@@ -29,12 +29,12 @@ A Minecraft keybind-to-command system: bind keyboard keys to server actions.
 # Mod JAR    → keybind-mod/build/libs/KeybindMod-1.0.0.jar
 ```
 
-**Requirements:** Java 17+, Gradle 8.5+
+**Requirements:** Java 25+, Gradle 9.4+
 
 ## Installation
 
 1. Place `KeybindPlugin-1.0.0.jar` in your Paper server's `plugins/` folder
-2. Place `KeybindMod-1.0.0.jar` in your client's `mods/` folder (requires Fabric Loader + Fabric API)
+2. Place `KeybindMod-1.0.0.jar` in your client's `mods/` folder (requires Fabric Loader 0.18.4+ and Fabric API)
 3. Restart server and client
 
 ## Server Plugin Configuration
@@ -102,7 +102,7 @@ Keybinds also appear in Minecraft's Controls settings under the **Keybind Action
 
 The mod supports two communication modes:
 
-1. **Packet mode** (default, recommended): Uses the `keybind:main` plugin messaging channel. No chat spam, faster, more secure.
+1. **Packet mode** (default, recommended): Uses the `keybind:main` plugin messaging channel via `CustomPacketPayload`. No chat spam, faster, more secure.
 2. **Command mode** (fallback): Sends `/kbind <action>` as a chat command. Works even if the server doesn't register the channel.
 
 The mod automatically falls back to command mode if the server doesn't support the packet channel.
@@ -128,7 +128,9 @@ Keybind/
 │       └── PacketListener.java     # Plugin messaging listener
 ├── keybind-mod/             # Fabric client mod
 │   ├── src/main/java/com/keybind/mod/
-│   │   └── KeybindMod.java         # Mod entrypoint & constants
+│   │   ├── KeybindMod.java         # Mod entrypoint & constants
+│   │   └── network/
+│   │       └── KeybindActionPayload.java  # Custom packet payload
 │   └── src/client/java/com/keybind/mod/client/
 │       ├── KeybindModClient.java    # Client entrypoint
 │       ├── KeybindConfigManager.java # JSON config loader
@@ -140,6 +142,7 @@ Keybind/
 
 ## Roadmap
 
+- [ ] Multi-version support (Stonecutter)
 - [ ] In-game GUI for keybind management
 - [ ] Per-server config profiles
 - [ ] Action arguments support

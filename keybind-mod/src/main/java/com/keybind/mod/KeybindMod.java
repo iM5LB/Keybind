@@ -1,7 +1,7 @@
 package com.keybind.mod;
 
 import net.fabricmc.api.ModInitializer;
-import net.minecraft.util.Identifier;
+import net.minecraft.resources.Identifier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -11,7 +11,7 @@ public class KeybindMod implements ModInitializer {
     public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
 
     /** Plugin messaging channel — must match the server plugin's channel. */
-    public static final Identifier CHANNEL = new Identifier("keybind", "main");
+    public static final Identifier CHANNEL = Identifier.fromNamespaceAndPath("keybind", "main");
 
     @Override
     public void onInitialize() {

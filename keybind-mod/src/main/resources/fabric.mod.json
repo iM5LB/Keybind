@@ -12,7 +12,6 @@
     "sources": "https://github.com/iM5LB/Keybind"
   },
   "license": "MIT",
-  "icon": "assets/keybind/icon.png",
 
   "environment": "*",
   "entrypoints": {
@@ -26,9 +25,9 @@
   "mixins": [],
 
   "depends": {
-    "fabricloader": ">=0.15.0",
-    "minecraft": "~1.20.4",
-    "java": ">=17",
+    "fabricloader": ">=0.18.4",
+    "minecraft": "~26.1",
+    "java": ">=25",
     "fabric-api": "*"
   }
 }
