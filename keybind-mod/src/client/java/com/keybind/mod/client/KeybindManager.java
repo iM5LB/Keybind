@@ -33,21 +33,30 @@ public class KeybindManager {
     }
 
     private void registerAction(String actionName, String keyName) {
-        int glfwKey = resolveGlfwKey(keyName.toUpperCase());
-        if (glfwKey == GLFW.GLFW_KEY_UNKNOWN) {
-            KeybindMod.LOGGER.warn("Unknown key '{}' for action '{}'", keyName, actionName);
-            return;
+        InputConstants.Key key;
+        try {
+            if (keyName.contains(".")) {
+                key = InputConstants.getKey(keyName);
+            } else {
+                int glfwKey = resolveGlfwKey(keyName.toUpperCase());
+                if (glfwKey == GLFW.GLFW_KEY_UNKNOWN) {
+                    key = InputConstants.UNKNOWN;
+                } else {
+                    key = InputConstants.Type.KEYSYM.getOrCreate(glfwKey);
+                }
+            }
+        } catch (Exception e) {
+            key = InputConstants.UNKNOWN;
         }
 
         if (registeredMappings.containsKey(actionName)) {
             KeyMapping mapping = registeredMappings.get(actionName);
-            mapping.setKey(InputConstants.Type.KEYSYM.getOrCreate(glfwKey));
-            KeyMapping.resetMapping();
+            mapping.setKey(key);
         } else {
             KeyMapping mapping = KeyMappingHelper.registerKeyMapping(new KeyMapping(
                     "key.keybind." + actionName,
                     InputConstants.Type.KEYSYM,
-                    glfwKey,
+                    key.getValue(),
                     KEYBIND_CATEGORY
             ));
             registeredMappings.put(actionName, mapping);
@@ -55,26 +64,34 @@ public class KeybindManager {
     }
 
     public void onServerSync(String serverAddress, List<KeybindSyncPayload.ActionEntry> actions) {
-        currentServer = serverAddress;
-        synced = true;
+        this.currentServer = serverAddress;
+        this.synced = true;
 
         Map<String, String> savedBindings = ServerKeybindStorage.load(serverAddress);
-        Map<String, String> currentBindings = new LinkedHashMap<>();
+        if (savedBindings == null) savedBindings = new LinkedHashMap<>();
 
+        boolean configChanged = false;
         for (KeybindSyncPayload.ActionEntry action : actions) {
-            String keyName = (savedBindings != null && savedBindings.containsKey(action.name()))
-                    ? savedBindings.get(action.name())
-                    : action.defaultKey();
+            String keyName;
+            if (savedBindings.containsKey(action.name())) {
+                keyName = savedBindings.get(action.name());
+            } else {
+                keyName = action.defaultKey();
+                savedBindings.put(action.name(), keyName);
+                configChanged = true;
+            }
 
             if (keyName == null || keyName.isEmpty()) continue;
 
             registerAction(action.name(), keyName);
-            currentBindings.put(action.name(), keyName.toUpperCase());
-            KeybindMod.LOGGER.info("Bound: {} -> {}", keyName.toUpperCase(), action.name());
         }
 
-        ServerKeybindStorage.save(serverAddress, currentBindings);
-        KeybindMod.LOGGER.info("Synced {} keybinds for: {}", registeredMappings.size(), serverAddress);
+        if (configChanged) {
+            ServerKeybindStorage.save(serverAddress, savedBindings);
+        }
+        
+        KeyMapping.resetMapping();
+        KeybindMod.LOGGER.info("Synced {} keybinds for: {}", actions.size(), serverAddress);
     }
 
     public void onDisconnect() {
@@ -86,14 +103,27 @@ public class KeybindManager {
     public void tick(Minecraft client) {
         if (!synced || client.player == null || client.screen != null) return;
 
+        boolean changed = false;
         for (Map.Entry<String, KeyMapping> entry : registeredMappings.entrySet()) {
             String action = entry.getKey();
             KeyMapping mapping = entry.getValue();
+
+            // Detect if the user changed the keybind in the UI
+            if (currentServer != null) {
+                String currentKey = mapping.saveString();
+                Map<String, String> saved = ServerKeybindStorage.load(currentServer);
+                if (saved != null && !currentKey.equals(saved.get(action))) {
+                    saved.put(action, currentKey);
+                    ServerKeybindStorage.save(currentServer, saved);
+                    changed = true;
+                }
+            }
 
             while (mapping.consumeClick()) {
                 sendAction(client, action);
             }
         }
+        if (changed) KeyMapping.resetMapping();
     }
 
     public boolean isSynced() {
