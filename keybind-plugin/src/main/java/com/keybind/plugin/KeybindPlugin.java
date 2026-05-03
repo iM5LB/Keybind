@@ -7,6 +7,7 @@ public final class KeybindPlugin extends JavaPlugin {
 
     private ConfigManager configManager;
     private ActionExecutor actionExecutor;
+    private SyncSender syncSender;
 
     @Override
     public void onEnable() {
@@ -14,27 +15,35 @@ public final class KeybindPlugin extends JavaPlugin {
 
         configManager = new ConfigManager(this);
         actionExecutor = new ActionExecutor(this, configManager);
+        syncSender = new SyncSender(this);
 
         // Register /kbind command
         KeybindCommand command = new KeybindCommand(this, actionExecutor, configManager);
         getCommand("kbind").setExecutor(command);
         getCommand("kbind").setTabCompleter(command);
 
-        // Register plugin messaging channel for packet-based communication
-        String channel = configManager.getChannel();
+        // Register plugin messaging channels
         Messenger messenger = getServer().getMessenger();
+        String channel = configManager.getChannel();
+        String syncChannel = configManager.getSyncChannel();
+
         messenger.registerIncomingPluginChannel(this, channel,
                 new PacketListener(this, actionExecutor));
         messenger.registerOutgoingPluginChannel(this, channel);
+        messenger.registerOutgoingPluginChannel(this, syncChannel);
 
-        getLogger().info("Keybind plugin enabled! Channel: " + channel);
+        // Register join listener for syncing actions to clients
+        getServer().getPluginManager().registerEvents(syncSender, this);
+
+        getLogger().info("Keybind plugin enabled! Channel: " + channel + ", Sync: " + syncChannel);
     }
 
     @Override
     public void onDisable() {
-        String channel = configManager.getChannel();
-        getServer().getMessenger().unregisterIncomingPluginChannel(this, channel);
-        getServer().getMessenger().unregisterOutgoingPluginChannel(this, channel);
+        Messenger messenger = getServer().getMessenger();
+        messenger.unregisterIncomingPluginChannel(this, configManager.getChannel());
+        messenger.unregisterOutgoingPluginChannel(this, configManager.getChannel());
+        messenger.unregisterOutgoingPluginChannel(this, configManager.getSyncChannel());
         getLogger().info("Keybind plugin disabled.");
     }
 
@@ -44,5 +53,9 @@ public final class KeybindPlugin extends JavaPlugin {
 
     public ActionExecutor getActionExecutor() {
         return actionExecutor;
+    }
+
+    public SyncSender getSyncSender() {
+        return syncSender;
     }
 }

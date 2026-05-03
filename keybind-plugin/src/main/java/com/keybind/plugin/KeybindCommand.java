@@ -42,7 +42,8 @@ public class KeybindCommand implements CommandExecutor, TabCompleter {
                 return true;
             }
             configManager.reload();
-            sender.sendMessage(Component.text("Keybind config reloaded!", NamedTextColor.GREEN));
+            plugin.getSyncSender().sendSyncToAll();
+            sender.sendMessage(Component.text("Keybind config reloaded and synced to all players!", NamedTextColor.GREEN));
             return true;
         }
 

@@ -10,8 +10,8 @@ public class KeybindMod implements ModInitializer {
     public static final String MOD_ID = "keybind-mod";
     public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
 
-    /** Plugin messaging channel — must match the server plugin's channel. */
     public static final Identifier CHANNEL = Identifier.fromNamespaceAndPath("keybind", "main");
+    public static final Identifier SYNC_CHANNEL = Identifier.fromNamespaceAndPath("keybind", "sync");
 
     @Override
     public void onInitialize() {

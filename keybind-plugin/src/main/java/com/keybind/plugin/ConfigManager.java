@@ -14,6 +14,7 @@ public class ConfigManager {
     private final Map<String, ActionConfig> actions = new HashMap<>();
     private long globalCooldown;
     private String channel;
+    private String syncChannel;
 
     public ConfigManager(KeybindPlugin plugin) {
         this.plugin = plugin;
@@ -26,6 +27,7 @@ public class ConfigManager {
 
         globalCooldown = config.getLong("global-cooldown", 500);
         channel = config.getString("channel", "keybind:main");
+        syncChannel = config.getString("sync-channel", "keybind:sync");
 
         actions.clear();
         ConfigurationSection actionsSection = config.getConfigurationSection("actions");
@@ -39,11 +41,12 @@ public class ConfigManager {
             if (actionSection == null) continue;
 
             String command = actionSection.getString("command", key);
+            String defaultKey = actionSection.getString("default-key", "");
             String permission = actionSection.getString("permission", "");
             long cooldown = actionSection.getLong("cooldown", globalCooldown);
             boolean console = actionSection.getBoolean("console", false);
 
-            actions.put(key.toLowerCase(), new ActionConfig(key, command, permission, cooldown, console));
+            actions.put(key.toLowerCase(), new ActionConfig(key, command, defaultKey, permission, cooldown, console));
         }
 
         plugin.getLogger().info("Loaded " + actions.size() + " actions.");
@@ -51,6 +54,10 @@ public class ConfigManager {
 
     public ActionConfig getAction(String name) {
         return actions.get(name.toLowerCase());
+    }
+
+    public Map<String, ActionConfig> getActions() {
+        return Collections.unmodifiableMap(actions);
     }
 
     public Set<String> getActionNames() {
@@ -65,16 +72,22 @@ public class ConfigManager {
         return channel;
     }
 
+    public String getSyncChannel() {
+        return syncChannel;
+    }
+
     public static class ActionConfig {
         private final String name;
         private final String command;
+        private final String defaultKey;
         private final String permission;
         private final long cooldown;
         private final boolean console;
 
-        public ActionConfig(String name, String command, String permission, long cooldown, boolean console) {
+        public ActionConfig(String name, String command, String defaultKey, String permission, long cooldown, boolean console) {
             this.name = name;
             this.command = command;
+            this.defaultKey = defaultKey;
             this.permission = permission;
             this.cooldown = cooldown;
             this.console = console;
@@ -82,6 +95,7 @@ public class ConfigManager {
 
         public String getName() { return name; }
         public String getCommand() { return command; }
+        public String getDefaultKey() { return defaultKey; }
         public String getPermission() { return permission; }
         public long getCooldown() { return cooldown; }
         public boolean isConsole() { return console; }
