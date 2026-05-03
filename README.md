@@ -1,171 +1,102 @@
-# Keybind
+# ⌨️ Keybind
 
-A Minecraft keybind-to-command system: bind keyboard keys to server actions.
+A professional Minecraft keybind-to-command system that bridges the gap between keyboard shortcuts and server-side actions.
 
-**Client Mod** (Fabric, Minecraft 26.1) detects key presses and sends them to the server.
-**Server Plugin** (Paper, Minecraft 1.21+) receives triggers and executes configured commands.
+**[Client Mod]** (Fabric) • **[Server Plugin]** (Paper)
 
-## How It Works
+---
 
-```
-[Player joins server]
-        |
-[Server sends action list + default keys via keybind:sync]
-        |
-[Client activates keybinds for this server]
-        |
-[Player presses key]
-        |
-[Client sends action via keybind:main packet or /kbind command]
-        |
-[Server executes configured command]
-```
+## ✨ Features
 
-**Per-server keybinds:** Each server defines its own actions and default keys. The client stores customized bindings per server address in `config/keybind-servers/`. When you switch servers, keybinds update automatically.
+- 🔗 **Server-Driven**: Keybinds are automatically synchronized from the server on join.
+- 📁 **Per-Server Storage**: Your custom keybinds are saved separately for every server you visit.
+- 🛠️ **Dynamic Registration**: New server actions appear in your **Controls** menu instantly—no restart required.
+- 🏷️ **Custom Display Names**: Server owners can set friendly names (e.g., "Spawn" instead of `spawn_command`).
+- ⏱️ **Robust Cooldowns**: Both global and per-action cooldowns to prevent command spam.
+- 🔐 **Secure Execution**: Full permission support and optional console-side execution with `{player}` placeholder.
+- 📡 **Dual-Mode Sync**: Uses fast Plugin Messaging with a seamless fallback to chat commands.
 
-## Building
+---
 
-```bash
-./gradlew build
+## 🚀 How It Works
 
-# Plugin JAR -> keybind-plugin/build/libs/KeybindPlugin-1.0.0.jar
-# Mod JAR    -> keybind-mod/build/libs/KeybindMod-1.0.0.jar
-```
+1. **Handshake**: When you join a server, the plugin sends its configured action list and default keys.
+2. **Registration**: The mod dynamically registers these as native Minecraft keybinds in your **Settings → Controls** menu.
+3. **Trigger**: When you press a key, the mod sends a packet (or command fallback) to the server.
+4. **Execution**: The server validates your permissions/cooldowns and executes the command.
 
-Gradle auto-downloads the correct JDKs via toolchains (Java 21 for plugin, Java 25 for mod).
+---
 
-## Installation
+## 🛠️ Installation
 
-1. Place `KeybindPlugin-1.0.0.jar` in your Paper server's `plugins/` folder
-2. Place `KeybindMod-1.0.0.jar` in your client's `mods/` folder (requires Fabric Loader 0.18.4+ and Fabric API)
-3. Restart server and client
+### Server Side
+1. Place `Keybind-Plugin.jar` into your `plugins/` folder.
+2. Restart the server to generate the default configuration.
+3. Edit `plugins/Keybind/config.yml` to define your actions.
 
-## Server Plugin Configuration
+### Client Side
+1. Place `Keybind-Mod.jar` into your `mods/` folder.
+2. Requires **Fabric Loader** (0.18.4+) and **Fabric API**.
+3. Launch the game and connect to any server running the plugin.
 
-**`plugins/Keybind/config.yml`**
+---
 
+## ⚙️ Configuration
+
+### Server `config.yml`
 ```yaml
-global-cooldown: 500         # Default cooldown in ms
-channel: "keybind:main"      # Action messaging channel
-sync-channel: "keybind:sync" # Sync channel (server -> client)
+# Global cooldown between any actions (in milliseconds)
+global-cooldown: 500
 
 actions:
   spawn:
-    command: "spawn"      # Command to run (without /)
-    default-key: "K"      # Suggested key for clients
-    permission: ""        # Extra permission (optional)
-    cooldown: 1000        # Per-action cooldown in ms
-    console: false        # Run as console? (default: player)
-  home:
-    command: "home"
-    default-key: "L"
-    permission: ""
-    cooldown: 1000
-    console: false
+    command: "spawn"           # Command to run (without /)
+    display-name: "Teleport to Spawn" # Name shown in Controls menu
+    default-key: "LEFT_BRACKET" # Suggested key for new players
+    permission: "my.custom.perm" # Optional extra permission
+    cooldown: 1000             # Per-action cooldown
+    console: false             # Run as console? (default: player)
 ```
 
-When you add/remove actions and run `/kbind reload`, all connected players receive the updated action list automatically.
+---
 
-### Commands
+## ⌨️ Supported Keys
+Supports all standard keyboard keys:
+- **Letters & Numbers**: `A`-`Z`, `0`-`9`
+- **Function Keys**: `F1`-`F12`
+- **Special Keys**: `SPACE`, `ENTER`, `TAB`, `BACKSPACE`, `INSERT`, `DELETE`, `HOME`, `END`, etc.
+- **Punctuation**: `LEFT_BRACKET`, `RIGHT_BRACKET`, `SEMICOLON`, `PERIOD`, etc.
+
+---
+
+## 📜 Commands & Permissions
 
 | Command | Description | Permission |
-|---------|-------------|------------|
-| `/kbind <action>` | Execute a keybind action | `keybind.use` |
-| `/kbind list` | List available actions | `keybind.use` |
-| `/kbind reload` | Reload config & sync all players | `keybind.admin` |
-
-### Permissions
+| :--- | :--- | :--- |
+| `/kbind <action>` | Manually trigger an action | `keybind.use` |
+| `/kbind reload` | Reload config & sync players | `keybind.admin` |
 
 | Permission | Description | Default |
-|------------|-------------|---------|
-| `keybind.use` | Use keybind actions | Everyone |
-| `keybind.admin` | Reload config | OP |
-| `keybind.bypass.cooldown` | Skip cooldowns | OP |
-| `keybind.action.<name>` | Per-action permission | Not set (allowed if `keybind.use` is granted) |
+| :--- | :--- | :--- |
+| `keybind.use` | Basic access to the system | `Everyone` |
+| `keybind.admin` | Administrative control | `OP` |
+| `keybind.bypass.cooldown` | Ignore all cooldowns | `OP` |
 
-## Client Mod
+---
 
-The client mod is server-driven but allows local configuration for channel names.
+## 🏗️ Building from Source
 
-**`config/keybind-mod.json`** (Created on first run)
-```json
-{
-  "channel": "keybind:main",
-  "syncChannel": "keybind:sync"
-}
+```bash
+./gradlew clean build
 ```
-*Note: These must match the server plugin's `config.yml`.*
+The artifacts will be generated in:
+- `keybind-plugin/build/libs/KeybindPlugin-1.0.0.jar`
+- `keybind-mod/build/libs/KeybindMod-1.0.0.jar`
 
-### Keybind List
-The mod registers all known actions from previous server sessions at startup. This ensures they appear in the **Settings → Controls → Keybinds** menu even before you join a server.
+---
 
-When you join a server with the Keybind plugin, the server sends its action list and default key assignments. The mod stores your bindings per server in `config/keybind-servers/<server>.json`.
-
-Per-server config example (`config/keybind-servers/play_example_com_25565.json`):
-```json
-{
-  "serverAddress": "play.example.com:25565",
-  "bindings": {
-    "spawn": "K",
-    "home": "L"
-  }
-}
-```
-
-Edit this file to customize keys for a specific server. Changes take effect next time you join.
-
-### Supported Keys
-
-Letters (`A`-`Z`), numbers (`0`-`9`), function keys (`F1`-`F12`), modifiers (`LEFT_SHIFT`, `LEFT_CTRL`, `LEFT_ALT`), and special keys (`SPACE`, `ENTER`, `TAB`, `ESCAPE`, `HOME`, `END`, `PAGE_UP`, `PAGE_DOWN`, arrow keys, punctuation).
-
-## Communication
-
-The mod supports two communication modes:
-
-1. **Packet mode** (preferred): Uses the `keybind:main` plugin messaging channel via `CustomPacketPayload`. No chat spam, faster, more secure.
-2. **Command mode** (fallback): Sends `/kbind <action>` as a chat command. Works even if the server doesn't support the packet channel.
-
-The mod automatically falls back to command mode if packet sending isn't available.
-
-## Security
-
-- Permission checks on every action
-- Per-action cooldowns prevent spam
-- Packet validation (length limits, alphanumeric-only action names)
-- Actions execute on the main server thread
-- Console commands support `{player}` placeholder for the triggering player's name
-- Keybinds only fire when no screen is open (chat, inventory, etc.)
-
-## Project Structure
-
-```
-Keybind/
-├── keybind-plugin/          # Paper server plugin
-│   └── src/main/java/com/keybind/plugin/
-│       ├── KeybindPlugin.java      # Main plugin class
-│       ├── ConfigManager.java      # Config loading & action registry
-│       ├── ActionExecutor.java     # Command execution & cooldowns
-│       ├── KeybindCommand.java     # /kbind command handler
-│       ├── PacketListener.java     # Plugin messaging listener
-│       └── SyncSender.java         # Sends action list to clients
-├── keybind-mod/             # Fabric client mod
-│   ├── src/main/java/com/keybind/mod/
-│   │   ├── KeybindMod.java         # Mod entrypoint & constants
-│   │   └── network/
-│   │       ├── KeybindActionPayload.java  # Client -> server action
-│   │       └── KeybindSyncPayload.java    # Server -> client sync
-│   └── src/client/java/com/keybind/mod/client/
-│       ├── KeybindModClient.java    # Client entrypoint & receivers
-│       ├── KeybindManager.java      # Key polling & action dispatch
-│       └── ServerKeybindStorage.java # Per-server config persistence
-├── settings.gradle
-├── build.gradle
-└── gradle.properties
-```
-
-## Roadmap
-
-- [ ] Multi-version support (Stonecutter)
-- [ ] In-game GUI for keybind management
-- [ ] Action arguments support
-- [ ] Key combos (e.g. CTRL+K)
+## 🛡️ Security & UX
+- **No Conflict**: The mod detects and cleans up obsolete keybinds from old server sessions.
+- **Visual Feedback**: Real-time chat notifications when keybinds are synced.
+- **Safety First**: Keybinds only trigger when no UI screens (chat, inventory) are open.
+- **Persistence**: Your custom key assignments are never overwritten by server defaults on rejoin.

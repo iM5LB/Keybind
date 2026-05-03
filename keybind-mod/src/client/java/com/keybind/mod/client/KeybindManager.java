@@ -139,8 +139,8 @@ public class KeybindManager {
         }
     }
 
-    public void onServerSync(String serverAddress, List<KeybindSyncPayload.ActionEntry> actions) {
-        KeybindMod.LOGGER.info("Starting sync for: {} ({} actions)", serverAddress, actions.size());
+    public void onServerSync(String serverAddress, String serverVersion, List<KeybindSyncPayload.ActionEntry> actions) {
+        KeybindMod.LOGGER.info("Starting sync for: {} (Version: {}, Actions: {})", serverAddress, serverVersion, actions.size());
         this.currentServer = serverAddress;
         this.synced = true;
 

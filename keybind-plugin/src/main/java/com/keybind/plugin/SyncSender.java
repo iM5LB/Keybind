@@ -58,10 +58,12 @@ public class SyncSender implements Listener {
 
     private byte[] buildSyncPacket() {
         Map<String, ConfigManager.ActionConfig> actions = plugin.getConfigManager().getActions();
+        String version = plugin.getDescription().getVersion();
 
         try (ByteArrayOutputStream baos = new ByteArrayOutputStream();
              DataOutputStream dos = new DataOutputStream(baos)) {
 
+            writeString(dos, version);
             writeVarInt(dos, actions.size());
 
             for (ConfigManager.ActionConfig action : actions.values()) {

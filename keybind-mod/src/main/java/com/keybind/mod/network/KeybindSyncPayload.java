@@ -8,7 +8,7 @@ import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import java.util.ArrayList;
 import java.util.List;
 
-public record KeybindSyncPayload(List<ActionEntry> actions) implements CustomPacketPayload {
+public record KeybindSyncPayload(String version, List<ActionEntry> actions) implements CustomPacketPayload {
 
     public static final CustomPacketPayload.Type<KeybindSyncPayload> TYPE =
             new CustomPacketPayload.Type<>(KeybindMod.SYNC_CHANNEL);
@@ -17,6 +17,7 @@ public record KeybindSyncPayload(List<ActionEntry> actions) implements CustomPac
             StreamCodec.of(KeybindSyncPayload::write, KeybindSyncPayload::read);
 
     private static KeybindSyncPayload read(FriendlyByteBuf buf) {
+        String version = buf.readUtf();
         int count = buf.readVarInt();
         List<ActionEntry> actions = new ArrayList<>(count);
         for (int i = 0; i < count; i++) {
@@ -25,10 +26,11 @@ public record KeybindSyncPayload(List<ActionEntry> actions) implements CustomPac
             String defaultKey = buf.readUtf();
             actions.add(new ActionEntry(name, displayName, defaultKey));
         }
-        return new KeybindSyncPayload(actions);
+        return new KeybindSyncPayload(version, actions);
     }
 
     private static void write(FriendlyByteBuf buf, KeybindSyncPayload payload) {
+        buf.writeUtf(payload.version);
         buf.writeVarInt(payload.actions.size());
         for (ActionEntry entry : payload.actions) {
             buf.writeUtf(entry.name);

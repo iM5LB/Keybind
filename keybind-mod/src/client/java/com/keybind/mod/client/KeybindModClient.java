@@ -24,9 +24,8 @@ public class KeybindModClient implements ClientModInitializer {
         ClientPlayNetworking.registerGlobalReceiver(KeybindSyncPayload.TYPE,
                 (payload, context) -> {
                     String serverAddress = getServerAddress();
-                    KeybindMod.LOGGER.info("Packet received: sync ({} actions)", payload.actions().size());
                     context.client().execute(() -> {
-                        keybindManager.onServerSync(serverAddress, payload.actions());
+                        keybindManager.onServerSync(serverAddress, payload.version(), payload.actions());
                     });
                 }
         );
