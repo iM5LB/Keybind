@@ -14,21 +14,14 @@ public class ActionExecutor {
     private final KeybindPlugin plugin;
     private final ConfigManager configManager;
 
-    // Cooldown tracking: player UUID -> (action name -> last use timestamp)
     private final Map<UUID, Map<String, Long>> cooldowns = new ConcurrentHashMap<>();
+    private final Map<UUID, Long> globalCooldowns = new ConcurrentHashMap<>();
 
     public ActionExecutor(KeybindPlugin plugin, ConfigManager configManager) {
         this.plugin = plugin;
         this.configManager = configManager;
     }
 
-    /**
-     * Execute an action for a player.
-     *
-     * @param player the player triggering the action
-     * @param actionName the action name from config
-     * @return true if executed successfully
-     */
     public boolean execute(Player player, String actionName) {
         ConfigManager.ActionConfig action = configManager.getAction(actionName);
         if (action == null) {
@@ -36,86 +29,61 @@ public class ActionExecutor {
             return false;
         }
 
-        // Check base permission
         if (!player.hasPermission("keybind.use")) {
             player.sendMessage(Component.text("You don't have permission to use keybinds.", NamedTextColor.RED));
             return false;
         }
 
-        // Check action-specific permission
         String perm = action.getPermission();
         if (perm != null && !perm.isEmpty() && !player.hasPermission(perm)) {
-            player.sendMessage(Component.text("You don't have permission for action: " + actionName, NamedTextColor.RED));
+            player.sendMessage(Component.text("You don't have permission for action: " + action.getDisplayName(), NamedTextColor.RED));
             return false;
         }
 
-        // Check per-action permission node: keybind.action.<name>
-        if (!player.hasPermission("keybind.action." + actionName.toLowerCase())) {
-            // Only block if the permission is explicitly set to false
-            // By default we allow if keybind.use is granted
-            if (player.isPermissionSet("keybind.action." + actionName.toLowerCase())
-                    && !player.hasPermission("keybind.action." + actionName.toLowerCase())) {
-                player.sendMessage(Component.text("You don't have permission for action: " + actionName, NamedTextColor.RED));
+        if (!player.hasPermission("keybind.bypass.cooldown")) {
+            long now = System.currentTimeMillis();
+            
+            // Global cooldown check
+            Long lastGlobal = globalCooldowns.get(player.getUniqueId());
+            if (lastGlobal != null && now - lastGlobal < configManager.getGlobalCooldown()) {
+                double remaining = (configManager.getGlobalCooldown() - (now - lastGlobal)) / 1000.0;
+                player.sendMessage(Component.text("Please wait " + String.format("%.1f", remaining) + "s before next action.", NamedTextColor.YELLOW));
                 return false;
+            }
+
+            // Per-action cooldown check
+            Map<String, Long> playerCooldowns = cooldowns.get(player.getUniqueId());
+            if (playerCooldowns != null) {
+                Long lastAction = playerCooldowns.get(action.getName().toLowerCase());
+                if (lastAction != null && now - lastAction < action.getCooldown()) {
+                    double remaining = (action.getCooldown() - (now - lastAction)) / 1000.0;
+                    player.sendMessage(Component.text(action.getDisplayName() + " is on cooldown! Wait " + String.format("%.1f", remaining) + "s", NamedTextColor.YELLOW));
+                    return false;
+                }
             }
         }
 
-        // Check cooldown
-        if (!player.hasPermission("keybind.bypass.cooldown") && isOnCooldown(player, action)) {
-            long remaining = getRemainingCooldown(player, action);
-            player.sendMessage(Component.text(
-                    "Action on cooldown! Wait " + (remaining / 1000.0) + "s", NamedTextColor.YELLOW));
-            return false;
-        }
-
-        // Execute the command
-        String command = action.getCommand();
+        String command = action.getCommand().replace("{player}", player.getName());
         boolean success;
 
         if (action.isConsole()) {
-            // Run as console
-            success = Bukkit.dispatchCommand(Bukkit.getConsoleSender(), command.replace("{player}", player.getName()));
+            success = Bukkit.dispatchCommand(Bukkit.getConsoleSender(), command);
         } else {
-            // Run as player
             success = player.performCommand(command);
         }
 
         if (success) {
-            setCooldown(player, action);
+            long now = System.currentTimeMillis();
+            globalCooldowns.put(player.getUniqueId(), now);
+            cooldowns.computeIfAbsent(player.getUniqueId(), k -> new ConcurrentHashMap<>())
+                     .put(action.getName().toLowerCase(), now);
         }
 
         return success;
     }
 
-    private boolean isOnCooldown(Player player, ConfigManager.ActionConfig action) {
-        Map<String, Long> playerCooldowns = cooldowns.get(player.getUniqueId());
-        if (playerCooldowns == null) return false;
-
-        Long lastUse = playerCooldowns.get(action.getName().toLowerCase());
-        if (lastUse == null) return false;
-
-        return System.currentTimeMillis() - lastUse < action.getCooldown();
-    }
-
-    private long getRemainingCooldown(Player player, ConfigManager.ActionConfig action) {
-        Map<String, Long> playerCooldowns = cooldowns.get(player.getUniqueId());
-        if (playerCooldowns == null) return 0;
-
-        Long lastUse = playerCooldowns.get(action.getName().toLowerCase());
-        if (lastUse == null) return 0;
-
-        return action.getCooldown() - (System.currentTimeMillis() - lastUse);
-    }
-
-    private void setCooldown(Player player, ConfigManager.ActionConfig action) {
-        cooldowns.computeIfAbsent(player.getUniqueId(), k -> new ConcurrentHashMap<>())
-                .put(action.getName().toLowerCase(), System.currentTimeMillis());
-    }
-
-    /**
-     * Clear cooldowns for a player (called on disconnect).
-     */
-    public void clearCooldowns(UUID playerId) {
-        cooldowns.remove(playerId);
+    public void clearCooldowns(UUID uuid) {
+        cooldowns.remove(uuid);
+        globalCooldowns.remove(uuid);
     }
 }

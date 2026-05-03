@@ -1,8 +1,4 @@
 # Keybind Plugin Configuration
-# Define actions that can be triggered by the client mod
-
-# Global cooldown in milliseconds (default: 500ms)
-global-cooldown: 500
 
 # Channel name for plugin messaging (must match client mod)
 channel: "keybind:main"
@@ -10,22 +6,22 @@ channel: "keybind:main"
 # Sync channel for sending action list to clients on join
 sync-channel: "keybind:sync"
 
-# Actions configuration
-# Each action has:
-#   command: the command to execute (without /)
-#   default-key: suggested key for the client (e.g. K, L, F5)
-#   permission: optional permission node (leave empty for no extra permission)
-#   cooldown: optional per-action cooldown in milliseconds (overrides global)
-#   console: if true, runs as console command; if false, runs as player (default: false)
+# Global cooldown between any keybind actions (in milliseconds)
+global-cooldown: 500
+
+# Define your custom actions here
+# Each action will be registered as a keybind on the client
 actions:
   spawn:
     command: "spawn"
+    display-name: "Spawn"
     default-key: "LEFT_BRACKET"
     permission: ""
     cooldown: 1000
     console: false
   home:
     command: "home"
+    display-name: "Home"
     default-key: "RIGHT_BRACKET"
     permission: ""
     cooldown: 1000
