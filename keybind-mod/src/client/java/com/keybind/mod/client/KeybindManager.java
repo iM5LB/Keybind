@@ -7,10 +7,13 @@ import com.mojang.blaze3d.platform.InputConstants;
 import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
-import net.minecraft.resources.Identifier;
+import net.minecraft.client.Options;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.Identifier;
+import org.apache.commons.lang3.ArrayUtils;
 import org.lwjgl.glfw.GLFW;
 
+import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -64,13 +67,27 @@ public class KeybindManager {
                     KEYBIND_CATEGORY
             );
             
-            KeyMappingHelper.registerKeyMapping(mapping);
-            registeredMappings.put(actionName, mapping);
-
             Minecraft client = Minecraft.getInstance();
-            if (client.options != null) {
-                KeyMapping.resetMapping();
+            if (client.options == null) {
+                // Still in init phase
+                KeyMappingHelper.registerKeyMapping(mapping);
+            } else {
+                // Already in game, use reflection to inject into the final array
+                try {
+                    Field field = Options.class.getDeclaredField("keyMappings");
+                    field.setAccessible(true);
+                    KeyMapping[] original = (KeyMapping[]) field.get(client.options);
+                    if (!ArrayUtils.contains(original, mapping)) {
+                        KeyMapping[] updated = ArrayUtils.add(original, mapping);
+                        field.set(client.options, updated);
+                        KeyMapping.resetMapping();
+                    }
+                } catch (Exception e) {
+                    KeybindMod.LOGGER.error("Failed to dynamically register keybind via reflection", e);
+                }
             }
+            
+            registeredMappings.put(actionName, mapping);
         }
     }
 
