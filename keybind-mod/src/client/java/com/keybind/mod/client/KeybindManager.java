@@ -8,7 +8,9 @@ import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.resources.Identifier;
+import net.minecraft.client.Options;
 import net.minecraft.network.chat.Component;
+import org.apache.commons.lang3.ArrayUtils;
 import org.lwjgl.glfw.GLFW;
 
 import java.util.ArrayList;
@@ -58,12 +60,20 @@ public class KeybindManager {
                     key.getValue(),
                     KEYBIND_CATEGORY
             );
+            
             KeyMappingHelper.registerKeyMapping(mapping);
             registeredMappings.put(actionName, mapping);
+
+            // Force the game to acknowledge the new mapping if it's already initialized
+            Minecraft client = Minecraft.getInstance();
+            if (client.options != null) {
+                KeyMapping.resetMapping();
+            }
         }
     }
 
     public void onServerSync(String serverAddress, List<KeybindSyncPayload.ActionEntry> actions) {
+        KeybindMod.LOGGER.info("Starting sync for server: {} with {} actions", serverAddress, actions.size());
         this.currentServer = serverAddress;
         this.synced = true;
 
@@ -96,11 +106,13 @@ public class KeybindManager {
         KeyMapping.resetMapping();
         
         Minecraft client = Minecraft.getInstance();
-        if (client.player != null && !newActions.isEmpty()) {
-            client.player.sendSystemMessage(Component.literal("§a[Keybind] Synced " + actions.size() + " actions. §7(" + newActions.size() + " new)"));
+        if (client.player != null) {
+            String msg = "§a[Keybind] Synced " + actions.size() + " actions.";
+            if (!newActions.isEmpty()) msg += " §7(" + newActions.size() + " new)";
+            client.player.sendSystemMessage(Component.literal(msg));
         }
         
-        KeybindMod.LOGGER.info("Synced {} actions for: {}", actions.size(), serverAddress);
+        KeybindMod.LOGGER.info("Successfully synced {} actions for: {}", actions.size(), serverAddress);
     }
 
     public void onDisconnect() {

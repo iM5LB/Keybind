@@ -11,14 +11,12 @@ public class KeybindMod implements ModInitializer {
     public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
     public static ModConfig CONFIG;
 
-    public static Identifier CHANNEL;
-    public static Identifier SYNC_CHANNEL;
+    public static final Identifier CHANNEL = Identifier.fromNamespaceAndPath("keybind", "main");
+    public static final Identifier SYNC_CHANNEL = Identifier.fromNamespaceAndPath("keybind", "sync");
 
     @Override
     public void onInitialize() {
         CONFIG = ModConfig.load();
-        CHANNEL = Identifier.parse(CONFIG.channel);
-        SYNC_CHANNEL = Identifier.parse(CONFIG.syncChannel);
-        LOGGER.info("Keybind Mod initialized (Channel: {}, Sync: {})", CONFIG.channel, CONFIG.syncChannel);
+        LOGGER.info("Keybind Mod initialized.");
     }
 }
