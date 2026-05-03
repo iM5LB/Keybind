@@ -1,0 +1,31 @@
+# Keybind Plugin Configuration
+# Define actions that can be triggered by the client mod
+
+# Global cooldown in milliseconds (default: 500ms)
+global-cooldown: 500
+
+# Channel name for plugin messaging (must match client mod)
+channel: "keybind:main"
+
+# Actions configuration
+# Each action has:
+#   command: the command to execute (without /)
+#   permission: optional permission node (leave empty for no extra permission)
+#   cooldown: optional per-action cooldown in milliseconds (overrides global)
+#   console: if true, runs as console command; if false, runs as player (default: false)
+actions:
+  spawn:
+    command: "spawn"
+    permission: ""
+    cooldown: 1000
+    console: false
+  home:
+    command: "home"
+    permission: ""
+    cooldown: 1000
+    console: false
+  tpa:
+    command: "tpa"
+    permission: ""
+    cooldown: 2000
+    console: false
