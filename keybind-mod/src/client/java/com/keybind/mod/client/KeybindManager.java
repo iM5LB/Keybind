@@ -178,16 +178,18 @@ public class KeybindManager {
         Iterator<Map.Entry<String, KeyMapping>> it = registeredMappings.entrySet().iterator();
         while (it.hasNext()) {
             Map.Entry<String, KeyMapping> entry = it.next();
-            if (!incomingActions.contains(entry.getKey())) {
-                KeybindMod.LOGGER.info("Removing obsolete action: {}", entry.getKey());
+            String actionName = entry.getKey();
+            if (!incomingActions.contains(actionName)) {
+                KeybindMod.LOGGER.info("Removing obsolete action from client: {}", actionName);
                 if (client.options != null) {
                     removeKeyMapping(client, entry.getValue());
                 }
                 it.remove();
-                displayNames.remove(entry.getKey().toLowerCase());
-                if (savedBindings.containsKey(entry.getKey())) {
-                    savedBindings.remove(entry.getKey());
+                displayNames.remove(actionName.toLowerCase());
+                if (savedBindings.containsKey(actionName)) {
+                    savedBindings.remove(actionName);
                     configChanged = true;
+                    KeybindMod.LOGGER.info("Removed obsolete action from saved config: {}", actionName);
                 }
             }
         }
