@@ -1,7 +1,7 @@
 name: Keybind
 version: '${version}'
 main: com.keybind.plugin.KeybindPlugin
-api-version: '1.21'
+api-version: '1.16'
 description: Server-side keybind action executor
 authors:
   - iM5LB
