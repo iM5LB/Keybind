@@ -11,16 +11,7 @@ public class KeybindMod implements ModInitializer {
     public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
     public static ModConfig CONFIG;
 
-    /**
-     * Plugin messaging channel for client → server action triggers.
-     * MUST match the "channel" value in the server plugin's config.yml (default: "keybind:main").
-     */
     public static Identifier CHANNEL;
-
-    /**
-     * Plugin messaging channel for server → client action list sync on join.
-     * MUST match the "sync-channel" value in the server plugin's config.yml (default: "keybind:sync").
-     */
     public static Identifier SYNC_CHANNEL;
 
     @Override
@@ -28,6 +19,6 @@ public class KeybindMod implements ModInitializer {
         CONFIG = ModConfig.load();
         CHANNEL = Identifier.parse(CONFIG.channel);
         SYNC_CHANNEL = Identifier.parse(CONFIG.syncChannel);
-        LOGGER.info("Keybind Mod initialized with channel: {} and sync-channel: {}", CONFIG.channel, CONFIG.syncChannel);
+        LOGGER.info("Keybind Mod initialized (Channel: {}, Sync: {})", CONFIG.channel, CONFIG.syncChannel);
     }
 }

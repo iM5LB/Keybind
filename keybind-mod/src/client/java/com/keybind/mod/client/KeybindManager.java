@@ -16,20 +16,14 @@ import java.util.Map;
 
 public class KeybindManager {
 
-    /** Category shown in Minecraft's Controls screen under "Keybind (Server)" */
     private static final KeyMapping.Category KEYBIND_CATEGORY =
             KeyMapping.Category.register(Identifier.fromNamespaceAndPath(KeybindMod.MOD_ID, "server_actions"));
 
-    /** Registered KeyMapping objects (action name -> KeyMapping) */
     private final Map<String, KeyMapping> registeredMappings = new LinkedHashMap<>();
 
     private String currentServer = null;
     private boolean synced = false;
 
-    /**
-     * Called during mod initialization to register any keybinds we've seen before.
-     * This ensures they show up in the Controls screen immediately.
-     */
     public void registerAllKnownActions() {
         Map<String, String> allActions = ServerKeybindStorage.loadAllActions();
         for (Map.Entry<String, String> entry : allActions.entrySet()) {
@@ -46,14 +40,12 @@ public class KeybindManager {
         }
 
         if (registeredMappings.containsKey(actionName)) {
-            // Already registered — just update the bound key
             KeyMapping mapping = registeredMappings.get(actionName);
             mapping.setKey(InputConstants.Type.KEYSYM.getOrCreate(glfwKey));
             KeyMapping.resetMapping();
         } else {
-            // First time seeing this action — register a new KeyMapping
             KeyMapping mapping = KeyMappingHelper.registerKeyMapping(new KeyMapping(
-                    "key.keybind." + actionName,   // translation key
+                    "key.keybind." + actionName,
                     InputConstants.Type.KEYSYM,
                     glfwKey,
                     KEYBIND_CATEGORY
@@ -62,28 +54,17 @@ public class KeybindManager {
         }
     }
 
-    /**
-     * Called when the server sends an action sync packet.
-     * Registers (or updates) KeyMapping objects for each action so they appear
-     * in Minecraft's Settings → Controls → Keybinds screen.
-     */
     public void onServerSync(String serverAddress, List<KeybindSyncPayload.ActionEntry> actions) {
         currentServer = serverAddress;
         synced = true;
 
-        // Load saved per-server bindings
         Map<String, String> savedBindings = ServerKeybindStorage.load(serverAddress);
-
-        // Track which bindings we actually set up
         Map<String, String> currentBindings = new LinkedHashMap<>();
 
         for (KeybindSyncPayload.ActionEntry action : actions) {
-            String keyName;
-            if (savedBindings != null && savedBindings.containsKey(action.name())) {
-                keyName = savedBindings.get(action.name());
-            } else {
-                keyName = action.defaultKey();
-            }
+            String keyName = (savedBindings != null && savedBindings.containsKey(action.name()))
+                    ? savedBindings.get(action.name())
+                    : action.defaultKey();
 
             if (keyName == null || keyName.isEmpty()) continue;
 
@@ -92,37 +73,23 @@ public class KeybindManager {
             KeybindMod.LOGGER.info("Bound: {} -> {}", keyName.toUpperCase(), action.name());
         }
 
-        // Save current bindings for this server
         ServerKeybindStorage.save(serverAddress, currentBindings);
-
-        KeybindMod.LOGGER.info("Synced {} keybinds for server: {}", registeredMappings.size(), serverAddress);
+        KeybindMod.LOGGER.info("Synced {} keybinds for: {}", registeredMappings.size(), serverAddress);
     }
 
-    /**
-     * Called when disconnecting from a server.
-     * Clears sync state but keeps KeyMapping registrations alive
-     * (they stay in the Controls screen until the game restarts).
-     */
     public void onDisconnect() {
         currentServer = null;
         synced = false;
         KeybindMod.LOGGER.info("Disconnected — keybind sync cleared.");
     }
 
-    /**
-     * Called every client tick. Fires actions when their bound key is pressed.
-     */
     public void tick(Minecraft client) {
-        if (!synced || client.player == null) return;
-
-        // Don't process keybinds while a screen is open (chat, inventory, etc.)
-        if (client.screen != null) return;
+        if (!synced || client.player == null || client.screen != null) return;
 
         for (Map.Entry<String, KeyMapping> entry : registeredMappings.entrySet()) {
             String action = entry.getKey();
             KeyMapping mapping = entry.getValue();
 
-            // consumeClick() returns true once per key-down edge — no manual state tracking needed
             while (mapping.consumeClick()) {
                 sendAction(client, action);
             }
@@ -137,19 +104,13 @@ public class KeybindManager {
         if (client.player == null) return;
 
         try {
-            net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking.send(
-                    new KeybindActionPayload(action));
-            KeybindMod.LOGGER.debug("Sent packet action: {}", action);
+            net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking.send(new KeybindActionPayload(action));
+            KeybindMod.LOGGER.debug("Sent action: {}", action);
         } catch (Exception e) {
-            // Fallback: send as chat command
             client.player.connection.sendCommand("kbind " + action);
-            KeybindMod.LOGGER.debug("Sent chat command: /kbind {}", action);
+            KeybindMod.LOGGER.debug("Sent command: /kbind {}", action);
         }
     }
-
-    // -------------------------------------------------------------------------
-    // Key name → GLFW key code resolver
-    // -------------------------------------------------------------------------
 
     static int resolveGlfwKey(String keyName) {
         return switch (keyName) {

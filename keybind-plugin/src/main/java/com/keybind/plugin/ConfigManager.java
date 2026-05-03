@@ -37,16 +37,17 @@ public class ConfigManager {
         }
 
         for (String key : actionsSection.getKeys(false)) {
-            ConfigurationSection actionSection = actionsSection.getConfigurationSection(key);
-            if (actionSection == null) continue;
+            ConfigurationSection section = actionsSection.getConfigurationSection(key);
+            if (section == null) continue;
 
-            String command = actionSection.getString("command", key);
-            String defaultKey = actionSection.getString("default-key", "");
-            String permission = actionSection.getString("permission", "");
-            long cooldown = actionSection.getLong("cooldown", globalCooldown);
-            boolean console = actionSection.getBoolean("console", false);
-
-            actions.put(key.toLowerCase(), new ActionConfig(key, command, defaultKey, permission, cooldown, console));
+            actions.put(key.toLowerCase(), new ActionConfig(
+                    key,
+                    section.getString("command", key),
+                    section.getString("default-key", ""),
+                    section.getString("permission", ""),
+                    section.getLong("cooldown", globalCooldown),
+                    section.getBoolean("console", false)
+            ));
         }
 
         plugin.getLogger().info("Loaded " + actions.size() + " actions.");

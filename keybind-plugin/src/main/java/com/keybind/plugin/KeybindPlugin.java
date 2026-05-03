@@ -17,25 +17,21 @@ public final class KeybindPlugin extends JavaPlugin {
         actionExecutor = new ActionExecutor(this, configManager);
         syncSender = new SyncSender(this);
 
-        // Register /kbind command
         KeybindCommand command = new KeybindCommand(this, actionExecutor, configManager);
         getCommand("kbind").setExecutor(command);
         getCommand("kbind").setTabCompleter(command);
 
-        // Register plugin messaging channels
         Messenger messenger = getServer().getMessenger();
         String channel = configManager.getChannel();
         String syncChannel = configManager.getSyncChannel();
 
-        messenger.registerIncomingPluginChannel(this, channel,
-                new PacketListener(this, actionExecutor));
+        messenger.registerIncomingPluginChannel(this, channel, new PacketListener(this, actionExecutor));
         messenger.registerOutgoingPluginChannel(this, channel);
         messenger.registerOutgoingPluginChannel(this, syncChannel);
 
-        // Register join listener for syncing actions to clients
         getServer().getPluginManager().registerEvents(syncSender, this);
 
-        getLogger().info("Keybind plugin enabled! Channel: " + channel + ", Sync: " + syncChannel);
+        getLogger().info("Keybind plugin enabled (Channel: " + channel + ", Sync: " + syncChannel + ")");
     }
 
     @Override

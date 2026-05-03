@@ -20,43 +20,38 @@ public class KeybindModClient implements ClientModInitializer {
         keybindManager = new KeybindManager();
         keybindManager.registerAllKnownActions();
 
-        // Register serverbound payload (client -> server: action triggers)
         PayloadTypeRegistry.serverboundPlay().register(
                 KeybindActionPayload.TYPE,
                 KeybindActionPayload.STREAM_CODEC
         );
 
-        // Register clientbound payload (server -> client: action list sync)
         PayloadTypeRegistry.clientboundPlay().register(
                 KeybindSyncPayload.TYPE,
                 KeybindSyncPayload.STREAM_CODEC
         );
 
-        // Listen for sync packets from the server
         ClientPlayNetworking.registerGlobalReceiver(KeybindSyncPayload.TYPE,
                 (payload, context) -> {
                     String serverAddress = getServerAddress();
-                    KeybindMod.LOGGER.info("Received sync from server: "
-                            + payload.actions().size() + " actions");
+                    KeybindMod.LOGGER.info("Received sync: {} actions", payload.actions().size());
                     context.client().execute(() -> {
                         keybindManager.onServerSync(serverAddress, payload.actions());
                     });
                 }
         );
 
-        // Clear keybinds on disconnect
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
             keybindManager.onDisconnect();
             KeybindMod.LOGGER.info("Disconnected — keybinds cleared.");
         });
 
-        // Tick handler for key polling
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
-            if (client.player == null) return;
-            keybindManager.tick(client);
+            if (client.player != null) {
+                keybindManager.tick(client);
+            }
         });
 
-        KeybindMod.LOGGER.info("Keybind Mod client initialized (server-synced mode).");
+        KeybindMod.LOGGER.info("Keybind Mod client initialized.");
     }
 
     private String getServerAddress() {

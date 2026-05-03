@@ -20,9 +20,10 @@ public class ModConfig {
     public static ModConfig load() {
         if (Files.exists(CONFIG_FILE)) {
             try (Reader reader = Files.newBufferedReader(CONFIG_FILE)) {
-                return GSON.fromJson(reader, ModConfig.class);
+                ModConfig config = GSON.fromJson(reader, ModConfig.class);
+                if (config != null) return config;
             } catch (IOException e) {
-                KeybindMod.LOGGER.error("Failed to load mod config", e);
+                KeybindMod.LOGGER.error("Failed to load config", e);
             }
         }
         ModConfig config = new ModConfig();
@@ -37,7 +38,7 @@ public class ModConfig {
                 GSON.toJson(this, writer);
             }
         } catch (IOException e) {
-            KeybindMod.LOGGER.error("Failed to save mod config", e);
+            KeybindMod.LOGGER.error("Failed to save config", e);
         }
     }
 }
