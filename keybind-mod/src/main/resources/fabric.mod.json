@@ -22,7 +22,9 @@
       "com.keybind.mod.client.KeybindModClient"
     ]
   },
-  "mixins": [],
+  "mixins": [
+    "keybind-mod.mixins.json"
+  ],
 
   "depends": {
     "fabricloader": ">=0.18.4",
