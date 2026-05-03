@@ -8,8 +8,10 @@ import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.resources.Identifier;
+import net.minecraft.network.chat.Component;
 import org.lwjgl.glfw.GLFW;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -39,26 +41,24 @@ public class KeybindManager {
                 key = InputConstants.getKey(keyName);
             } else {
                 int glfwKey = resolveGlfwKey(keyName.toUpperCase());
-                if (glfwKey == GLFW.GLFW_KEY_UNKNOWN) {
-                    key = InputConstants.UNKNOWN;
-                } else {
-                    key = InputConstants.Type.KEYSYM.getOrCreate(glfwKey);
-                }
+                key = (glfwKey == GLFW.GLFW_KEY_UNKNOWN) 
+                    ? InputConstants.UNKNOWN 
+                    : InputConstants.Type.KEYSYM.getOrCreate(glfwKey);
             }
         } catch (Exception e) {
             key = InputConstants.UNKNOWN;
         }
 
         if (registeredMappings.containsKey(actionName)) {
-            KeyMapping mapping = registeredMappings.get(actionName);
-            mapping.setKey(key);
+            registeredMappings.get(actionName).setKey(key);
         } else {
-            KeyMapping mapping = KeyMappingHelper.registerKeyMapping(new KeyMapping(
+            KeyMapping mapping = new KeyMapping(
                     "key.keybind." + actionName,
                     InputConstants.Type.KEYSYM,
                     key.getValue(),
                     KEYBIND_CATEGORY
-            ));
+            );
+            KeyMappingHelper.registerKeyMapping(mapping);
             registeredMappings.put(actionName, mapping);
         }
     }
@@ -70,7 +70,9 @@ public class KeybindManager {
         Map<String, String> savedBindings = ServerKeybindStorage.load(serverAddress);
         if (savedBindings == null) savedBindings = new LinkedHashMap<>();
 
+        List<String> newActions = new ArrayList<>();
         boolean configChanged = false;
+
         for (KeybindSyncPayload.ActionEntry action : actions) {
             String keyName;
             if (savedBindings.containsKey(action.name())) {
@@ -78,12 +80,13 @@ public class KeybindManager {
             } else {
                 keyName = action.defaultKey();
                 savedBindings.put(action.name(), keyName);
+                newActions.add(action.name());
                 configChanged = true;
             }
 
-            if (keyName == null || keyName.isEmpty()) continue;
-
-            registerAction(action.name(), keyName);
+            if (keyName != null && !keyName.isEmpty()) {
+                registerAction(action.name(), keyName);
+            }
         }
 
         if (configChanged) {
@@ -91,7 +94,13 @@ public class KeybindManager {
         }
         
         KeyMapping.resetMapping();
-        KeybindMod.LOGGER.info("Synced {} keybinds for: {}", actions.size(), serverAddress);
+        
+        Minecraft client = Minecraft.getInstance();
+        if (client.player != null && !newActions.isEmpty()) {
+            client.player.sendSystemMessage(Component.literal("§a[Keybind] Synced " + actions.size() + " actions. §7(" + newActions.size() + " new)"));
+        }
+        
+        KeybindMod.LOGGER.info("Synced {} actions for: {}", actions.size(), serverAddress);
     }
 
     public void onDisconnect() {
