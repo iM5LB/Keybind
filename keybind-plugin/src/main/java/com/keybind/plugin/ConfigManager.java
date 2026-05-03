@@ -13,8 +13,10 @@ public class ConfigManager {
     private final KeybindPlugin plugin;
     private final Map<String, ActionConfig> actions = new HashMap<>();
     private long globalCooldown;
-    private String channel;
-    private String syncChannel;
+    
+    // Hardcoded channel names
+    private static final String CHANNEL = "keybind:main";
+    private static final String SYNC_CHANNEL = "keybind:sync";
 
     public ConfigManager(KeybindPlugin plugin) {
         this.plugin = plugin;
@@ -26,8 +28,6 @@ public class ConfigManager {
         FileConfiguration config = plugin.getConfig();
 
         globalCooldown = config.getLong("global-cooldown", 500);
-        channel = config.getString("channel", "keybind:main");
-        syncChannel = config.getString("sync-channel", "keybind:sync");
 
         actions.clear();
         ConfigurationSection actionsSection = config.getConfigurationSection("actions");
@@ -85,11 +85,11 @@ public class ConfigManager {
     }
 
     public String getChannel() {
-        return channel;
+        return CHANNEL;
     }
 
     public String getSyncChannel() {
-        return syncChannel;
+        return SYNC_CHANNEL;
     }
 
     public static class ActionConfig {

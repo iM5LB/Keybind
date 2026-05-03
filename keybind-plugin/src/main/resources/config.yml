@@ -1,11 +1,5 @@
 # Keybind Plugin Configuration
 
-# Channel name for plugin messaging (must match client mod)
-channel: "keybind:main"
-
-# Sync channel for sending action list to clients on join
-sync-channel: "keybind:sync"
-
 # Global cooldown between any keybind actions (in milliseconds)
 global-cooldown: 500
 

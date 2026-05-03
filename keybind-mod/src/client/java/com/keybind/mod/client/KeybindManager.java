@@ -14,11 +14,7 @@ import org.apache.commons.lang3.ArrayUtils;
 import org.lwjgl.glfw.GLFW;
 
 import java.lang.reflect.Field;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 public class KeybindManager {
 
@@ -78,35 +74,68 @@ public class KeybindManager {
             if (client.options == null) {
                 KeyMappingHelper.registerKeyMapping(mapping);
             } else {
-                try {
-                    Field field = null;
-                    try {
-                        field = Options.class.getDeclaredField("keyMappings");
-                    } catch (NoSuchFieldException e) {
-                        for (Field f : Options.class.getDeclaredFields()) {
-                            if (f.getType() == KeyMapping[].class) {
-                                field = f;
-                                break;
-                            }
-                        }
-                    }
-
-                    if (field != null) {
-                        field.setAccessible(true);
-                        KeyMapping[] original = (KeyMapping[]) field.get(client.options);
-                        if (!ArrayUtils.contains(original, mapping)) {
-                            KeyMapping[] updated = ArrayUtils.add(original, mapping);
-                            field.set(client.options, updated);
-                            KeyMapping.resetMapping();
-                            KeybindMod.LOGGER.info("Dynamically registered action: {}", actionName);
-                        }
-                    }
-                } catch (Exception e) {
-                    KeybindMod.LOGGER.error("Failed to dynamically register keybind via reflection", e);
-                }
+                injectKeyMapping(client, mapping);
             }
             
             registeredMappings.put(actionName, mapping);
+        }
+    }
+
+    private void injectKeyMapping(Minecraft client, KeyMapping mapping) {
+        try {
+            Field field = null;
+            try {
+                field = Options.class.getDeclaredField("keyMappings");
+            } catch (NoSuchFieldException e) {
+                for (Field f : Options.class.getDeclaredFields()) {
+                    if (f.getType() == KeyMapping[].class) {
+                        field = f;
+                        break;
+                    }
+                }
+            }
+
+            if (field != null) {
+                field.setAccessible(true);
+                KeyMapping[] original = (KeyMapping[]) field.get(client.options);
+                if (!ArrayUtils.contains(original, mapping)) {
+                    KeyMapping[] updated = ArrayUtils.add(original, mapping);
+                    field.set(client.options, updated);
+                    KeyMapping.resetMapping();
+                    KeybindMod.LOGGER.info("Dynamically registered action: {}", mapping.getName());
+                }
+            }
+        } catch (Exception e) {
+            KeybindMod.LOGGER.error("Failed to dynamically register keybind via reflection", e);
+        }
+    }
+
+    private void removeKeyMapping(Minecraft client, KeyMapping mapping) {
+        try {
+            Field field = null;
+            try {
+                field = Options.class.getDeclaredField("keyMappings");
+            } catch (NoSuchFieldException e) {
+                for (Field f : Options.class.getDeclaredFields()) {
+                    if (f.getType() == KeyMapping[].class) {
+                        field = f;
+                        break;
+                    }
+                }
+            }
+
+            if (field != null) {
+                field.setAccessible(true);
+                KeyMapping[] original = (KeyMapping[]) field.get(client.options);
+                if (ArrayUtils.contains(original, mapping)) {
+                    KeyMapping[] updated = ArrayUtils.removeElement(original, mapping);
+                    field.set(client.options, updated);
+                    KeyMapping.resetMapping();
+                    KeybindMod.LOGGER.info("Dynamically removed action: {}", mapping.getName());
+                }
+            }
+        } catch (Exception e) {
+            KeybindMod.LOGGER.error("Failed to dynamically remove keybind via reflection", e);
         }
     }
 
@@ -118,25 +147,48 @@ public class KeybindManager {
         Map<String, String> savedBindings = ServerKeybindStorage.load(serverAddress);
         if (savedBindings == null) savedBindings = new LinkedHashMap<>();
 
+        Set<String> incomingActions = new HashSet<>();
         List<String> newActions = new ArrayList<>();
         boolean configChanged = false;
 
+        // Register/Update incoming actions
         for (KeybindSyncPayload.ActionEntry action : actions) {
-            displayNames.put(action.name().toLowerCase(), action.displayName());
+            String name = action.name();
+            incomingActions.add(name);
+            displayNames.put(name.toLowerCase(), action.displayName());
             
             String keyName;
-            if (savedBindings.containsKey(action.name())) {
-                keyName = savedBindings.get(action.name());
+            if (savedBindings.containsKey(name)) {
+                keyName = savedBindings.get(name);
             } else {
                 keyName = action.defaultKey();
-                savedBindings.put(action.name(), keyName);
-                newActions.add(action.name());
+                savedBindings.put(name, keyName);
+                newActions.add(name);
                 configChanged = true;
-                KeybindMod.LOGGER.info("New action found: {} (default: {})", action.name(), keyName);
+                KeybindMod.LOGGER.info("New action found: {} (default: {})", name, keyName);
             }
 
             if (keyName != null && !keyName.isEmpty()) {
-                registerAction(action.name(), keyName);
+                registerAction(name, keyName);
+            }
+        }
+
+        // Remove old actions that are no longer on the server
+        Minecraft client = Minecraft.getInstance();
+        Iterator<Map.Entry<String, KeyMapping>> it = registeredMappings.entrySet().iterator();
+        while (it.hasNext()) {
+            Map.Entry<String, KeyMapping> entry = it.next();
+            if (!incomingActions.contains(entry.getKey())) {
+                KeybindMod.LOGGER.info("Removing obsolete action: {}", entry.getKey());
+                if (client.options != null) {
+                    removeKeyMapping(client, entry.getValue());
+                }
+                it.remove();
+                displayNames.remove(entry.getKey().toLowerCase());
+                if (savedBindings.containsKey(entry.getKey())) {
+                    savedBindings.remove(entry.getKey());
+                    configChanged = true;
+                }
             }
         }
 
@@ -146,7 +198,6 @@ public class KeybindManager {
         
         KeyMapping.resetMapping();
         
-        Minecraft client = Minecraft.getInstance();
         if (client.player != null) {
             String msg = "§a[Keybind] Synced " + actions.size() + " actions.";
             if (!newActions.isEmpty()) msg += " §7(" + newActions.size() + " new)";
@@ -159,7 +210,9 @@ public class KeybindManager {
     public void onDisconnect() {
         currentServer = null;
         synced = false;
-        displayNames.clear();
+        // We keep registeredMappings so they stay in the Controls menu,
+        // but we clear displayNames to avoid confusion if rejoining a different server.
+        // The mappings will get updated/removed on the next sync.
         KeybindMod.LOGGER.info("Disconnected — keybind sync cleared.");
     }
 
