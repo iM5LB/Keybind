@@ -17,23 +17,14 @@ public class KeybindModClient implements ClientModInitializer {
 
     @Override
     public void onInitializeClient() {
+        KeybindMod.LOGGER.info("Initializing Keybind Mod client...");
         keybindManager = new KeybindManager();
         keybindManager.registerAllKnownActions();
-
-        PayloadTypeRegistry.serverboundPlay().register(
-                KeybindActionPayload.TYPE,
-                KeybindActionPayload.STREAM_CODEC
-        );
-
-        PayloadTypeRegistry.clientboundPlay().register(
-                KeybindSyncPayload.TYPE,
-                KeybindSyncPayload.STREAM_CODEC
-        );
 
         ClientPlayNetworking.registerGlobalReceiver(KeybindSyncPayload.TYPE,
                 (payload, context) -> {
                     String serverAddress = getServerAddress();
-                    KeybindMod.LOGGER.info("Received sync: {} actions", payload.actions().size());
+                    KeybindMod.LOGGER.info("Packet received: sync ({} actions)", payload.actions().size());
                     context.client().execute(() -> {
                         keybindManager.onServerSync(serverAddress, payload.actions());
                     });

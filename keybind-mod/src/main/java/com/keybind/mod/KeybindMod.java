@@ -1,6 +1,9 @@
 package com.keybind.mod;
 
+import com.keybind.mod.network.KeybindActionPayload;
+import com.keybind.mod.network.KeybindSyncPayload;
 import net.fabricmc.api.ModInitializer;
+import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.minecraft.resources.Identifier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -17,6 +20,17 @@ public class KeybindMod implements ModInitializer {
     @Override
     public void onInitialize() {
         CONFIG = ModConfig.load();
+        
+        PayloadTypeRegistry.serverboundPlay().register(
+                KeybindActionPayload.TYPE,
+                KeybindActionPayload.STREAM_CODEC
+        );
+
+        PayloadTypeRegistry.clientboundPlay().register(
+                KeybindSyncPayload.TYPE,
+                KeybindSyncPayload.STREAM_CODEC
+        );
+
         LOGGER.info("Keybind Mod initialized.");
     }
 }

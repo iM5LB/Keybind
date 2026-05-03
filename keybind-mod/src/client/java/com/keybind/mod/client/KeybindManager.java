@@ -8,9 +8,7 @@ import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.resources.Identifier;
-import net.minecraft.client.Options;
 import net.minecraft.network.chat.Component;
-import org.apache.commons.lang3.ArrayUtils;
 import org.lwjgl.glfw.GLFW;
 
 import java.util.ArrayList;
@@ -30,6 +28,10 @@ public class KeybindManager {
 
     public void registerAllKnownActions() {
         Map<String, String> allActions = ServerKeybindStorage.loadAllActions();
+        if (allActions.isEmpty()) {
+            KeybindMod.LOGGER.info("No known actions to pre-register.");
+            return;
+        }
         for (Map.Entry<String, String> entry : allActions.entrySet()) {
             registerAction(entry.getKey(), entry.getValue());
         }
@@ -48,6 +50,7 @@ public class KeybindManager {
                     : InputConstants.Type.KEYSYM.getOrCreate(glfwKey);
             }
         } catch (Exception e) {
+            KeybindMod.LOGGER.error("Failed to parse key '{}' for action '{}'", keyName, actionName);
             key = InputConstants.UNKNOWN;
         }
 
@@ -64,7 +67,6 @@ public class KeybindManager {
             KeyMappingHelper.registerKeyMapping(mapping);
             registeredMappings.put(actionName, mapping);
 
-            // Force the game to acknowledge the new mapping if it's already initialized
             Minecraft client = Minecraft.getInstance();
             if (client.options != null) {
                 KeyMapping.resetMapping();
@@ -73,7 +75,7 @@ public class KeybindManager {
     }
 
     public void onServerSync(String serverAddress, List<KeybindSyncPayload.ActionEntry> actions) {
-        KeybindMod.LOGGER.info("Starting sync for server: {} with {} actions", serverAddress, actions.size());
+        KeybindMod.LOGGER.info("Starting sync for: {} ({} actions)", serverAddress, actions.size());
         this.currentServer = serverAddress;
         this.synced = true;
 
@@ -92,6 +94,7 @@ public class KeybindManager {
                 savedBindings.put(action.name(), keyName);
                 newActions.add(action.name());
                 configChanged = true;
+                KeybindMod.LOGGER.info("New action found: {} (default: {})", action.name(), keyName);
             }
 
             if (keyName != null && !keyName.isEmpty()) {
