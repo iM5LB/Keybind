@@ -74,13 +74,31 @@ public class KeybindManager {
             } else {
                 // Already in game, use reflection to inject into the final array
                 try {
-                    Field field = Options.class.getDeclaredField("keyMappings");
-                    field.setAccessible(true);
-                    KeyMapping[] original = (KeyMapping[]) field.get(client.options);
-                    if (!ArrayUtils.contains(original, mapping)) {
-                        KeyMapping[] updated = ArrayUtils.add(original, mapping);
-                        field.set(client.options, updated);
-                        KeyMapping.resetMapping();
+                    // Try to find the keyMappings field by name or by type (it's the only KeyMapping array in Options)
+                    Field field = null;
+                    try {
+                        field = Options.class.getDeclaredField("keyMappings");
+                    } catch (NoSuchFieldException e) {
+                        // If named field fails (production/obfuscated), search by type
+                        for (Field f : Options.class.getDeclaredFields()) {
+                            if (f.getType() == KeyMapping[].class) {
+                                field = f;
+                                break;
+                            }
+                        }
+                    }
+
+                    if (field != null) {
+                        field.setAccessible(true);
+                        KeyMapping[] original = (KeyMapping[]) field.get(client.options);
+                        if (!ArrayUtils.contains(original, mapping)) {
+                            KeyMapping[] updated = ArrayUtils.add(original, mapping);
+                            field.set(client.options, updated);
+                            KeyMapping.resetMapping();
+                            KeybindMod.LOGGER.info("Dynamically registered action: {}", actionName);
+                        }
+                    } else {
+                        KeybindMod.LOGGER.error("Could not find keyMappings field in Options class.");
                     }
                 } catch (Exception e) {
                     KeybindMod.LOGGER.error("Failed to dynamically register keybind via reflection", e);
