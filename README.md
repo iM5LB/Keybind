@@ -2,7 +2,7 @@
 
 A professional Minecraft keybind-to-command system that bridges the gap between keyboard shortcuts and server-side actions.
 
-**[Client Mod]** (Fabric) • **[Server Plugin]** (Paper)
+**[Client Mod (Fabric)](https://modrinth.com/plugin/keybind/versions?l=fabric)** • **[Server Plugin (Paper)](https://modrinth.com/plugin/keybind/versions?l=bukkit)**
 
 ---
 
