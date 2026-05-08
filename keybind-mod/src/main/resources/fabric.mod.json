@@ -13,7 +13,7 @@
   },
   "license": "MIT",
 
-  "environment": "*",
+  "environment": "client",
   "entrypoints": {
     "main": [
       "com.keybind.mod.KeybindMod"
