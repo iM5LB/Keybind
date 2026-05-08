@@ -1,8 +1,8 @@
 name: Keybind
 version: '${version}'
 main: com.keybind.plugin.KeybindPlugin
-api-version: '1.16'
-description: Server-side keybind action executor
+api-version: '1.18'
+description: Bind keys to server-side commands. Works with the Keybind client mod.
 authors:
   - iM5LB
 

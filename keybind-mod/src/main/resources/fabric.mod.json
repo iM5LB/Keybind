@@ -9,7 +9,9 @@
     "iM5LB"
   ],
   "contact": {
-    "sources": "https://github.com/iM5LB/Keybind"
+    "homepage": "https://github.com/iM5LB/Keybind",
+    "sources": "https://github.com/iM5LB/Keybind",
+    "issues": "https://github.com/iM5LB/Keybind/issues"
   },
   "license": "MIT",
 
