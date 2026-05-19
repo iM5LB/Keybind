@@ -1,5 +1,6 @@
 package com.keybind.plugin;
 
+import com.keybind.mod.common.KeybindConstants;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
 
@@ -14,10 +15,6 @@ public class ConfigManager {
     private final Map<String, ActionConfig> actions = new HashMap<>();
     private long globalCooldown;
     
-    // Hardcoded channel names
-    private static final String CHANNEL = "keybind:main";
-    private static final String SYNC_CHANNEL = "keybind:sync";
-
     public ConfigManager(KeybindPlugin plugin) {
         this.plugin = plugin;
         reload();
@@ -89,11 +86,11 @@ public class ConfigManager {
     }
 
     public String getChannel() {
-        return CHANNEL;
+        return KeybindConstants.ACTION_CHANNEL;
     }
 
     public String getSyncChannel() {
-        return SYNC_CHANNEL;
+        return KeybindConstants.SYNC_CHANNEL;
     }
 
     public static class ActionConfig {

@@ -1,6 +1,6 @@
 plugins {
     id 'net.fabricmc.fabric-loom' version "${loom_version}"
-    id 'java'
+    id 'java-library'
 }
 
 version = project.version
@@ -20,7 +20,7 @@ loom {
     splitEnvironmentSourceSets()
 
     mods {
-        "keybind-mod" {
+        "keybind" {
             sourceSet sourceSets.main
             sourceSet sourceSets.client
         }
@@ -28,6 +28,7 @@ loom {
 }
 
 dependencies {
+    api project(':keybind-mod-common')
     minecraft "com.mojang:minecraft:${project.minecraft_version}"
 
     implementation "net.fabricmc:fabric-loader:${project.loader_version}"
@@ -49,5 +50,7 @@ tasks.withType(JavaCompile).configureEach {
 }
 
 jar {
+    dependsOn project(':keybind-mod-common').tasks.named('classes')
+    from(project(':keybind-mod-common').sourceSets.main.output)
     archiveBaseName.set('KeybindMod')
 }

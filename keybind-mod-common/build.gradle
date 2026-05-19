@@ -1,0 +1,21 @@
+plugins {
+    id 'java-library'
+}
+
+version = project.version
+group = project.group
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(17)
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = "UTF-8"
+    options.release = 17
+}
+
+jar {
+    archiveBaseName.set('KeybindModCommon')
+}

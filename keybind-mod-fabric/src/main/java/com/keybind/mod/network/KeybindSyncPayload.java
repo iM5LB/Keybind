@@ -1,6 +1,7 @@
 package com.keybind.mod.network;
 
 import com.keybind.mod.KeybindMod;
+import com.keybind.mod.common.KeybindActionDefinition;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
@@ -8,7 +9,7 @@ import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import java.util.ArrayList;
 import java.util.List;
 
-public record KeybindSyncPayload(String version, List<ActionEntry> actions) implements CustomPacketPayload {
+public record KeybindSyncPayload(String version, List<KeybindActionDefinition> actions) implements CustomPacketPayload {
 
     public static final CustomPacketPayload.Type<KeybindSyncPayload> TYPE =
             new CustomPacketPayload.Type<>(KeybindMod.SYNC_CHANNEL);
@@ -19,12 +20,12 @@ public record KeybindSyncPayload(String version, List<ActionEntry> actions) impl
     private static KeybindSyncPayload read(FriendlyByteBuf buf) {
         String version = buf.readUtf();
         int count = buf.readVarInt();
-        List<ActionEntry> actions = new ArrayList<>(count);
+        List<KeybindActionDefinition> actions = new ArrayList<>(count);
         for (int i = 0; i < count; i++) {
             String name = buf.readUtf();
             String displayName = buf.readUtf();
             String defaultKey = buf.readUtf();
-            actions.add(new ActionEntry(name, displayName, defaultKey));
+            actions.add(new KeybindActionDefinition(name, displayName, defaultKey));
         }
         return new KeybindSyncPayload(version, actions);
     }
@@ -32,10 +33,10 @@ public record KeybindSyncPayload(String version, List<ActionEntry> actions) impl
     private static void write(FriendlyByteBuf buf, KeybindSyncPayload payload) {
         buf.writeUtf(payload.version);
         buf.writeVarInt(payload.actions.size());
-        for (ActionEntry entry : payload.actions) {
-            buf.writeUtf(entry.name);
-            buf.writeUtf(entry.displayName);
-            buf.writeUtf(entry.defaultKey);
+        for (KeybindActionDefinition entry : payload.actions) {
+            buf.writeUtf(entry.name());
+            buf.writeUtf(entry.displayName());
+            buf.writeUtf(entry.defaultKey());
         }
     }
 
@@ -43,6 +44,4 @@ public record KeybindSyncPayload(String version, List<ActionEntry> actions) impl
     public Type<? extends CustomPacketPayload> type() {
         return TYPE;
     }
-
-    public record ActionEntry(String name, String displayName, String defaultKey) {}
 }

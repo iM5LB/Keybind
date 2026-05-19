@@ -131,9 +131,14 @@ actions:
 ./gradlew clean build
 ```
 
+Project layout:
+- `keybind-mod-common/` shared loader-agnostic code, config/storage models, packet format, sync planning, and client session state
+- `keybind-mod-fabric/` Fabric-specific entrypoints, payload glue, mixins, and resources
+- `keybind-plugin/` Paper plugin
+
 Output jars:
 - `keybind-plugin/build/libs/KeybindPlugin-1.0.0.jar`
-- `keybind-mod/build/libs/KeybindMod-1.0.0.jar`
+- `keybind-mod-fabric/build/libs/KeybindMod-1.0.0.jar`
 
 Requires Java 17+ for the plugin, Java 25+ for the mod.
 

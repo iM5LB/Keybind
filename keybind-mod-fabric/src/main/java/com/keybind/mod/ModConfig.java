@@ -2,6 +2,8 @@ package com.keybind.mod;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.keybind.mod.common.config.KeybindClientConfigData;
+import com.keybind.mod.common.config.KeybindPaths;
 import net.fabricmc.loader.api.FabricLoader;
 
 import java.io.IOException;
@@ -10,12 +12,9 @@ import java.io.Writer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
-public class ModConfig {
+public class ModConfig extends KeybindClientConfigData {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
-    private static final Path CONFIG_FILE = FabricLoader.getInstance().getConfigDir().resolve("keybind.json");
-
-    public String channel = "keybind:main";
-    public String syncChannel = "keybind:sync";
+    private static final Path CONFIG_FILE = KeybindPaths.clientConfig(FabricLoader.getInstance().getConfigDir());
 
     public static ModConfig load() {
         if (Files.exists(CONFIG_FILE)) {

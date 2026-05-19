@@ -1,10 +1,11 @@
 package com.keybind.plugin;
 
+import com.keybind.mod.common.network.KeybindPacketCodec;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.messaging.PluginMessageListener;
 import org.jetbrains.annotations.NotNull;
 
-import java.nio.charset.StandardCharsets;
+import java.io.IOException;
 
 public class PacketListener implements PluginMessageListener {
 
@@ -27,8 +28,15 @@ public class PacketListener implements PluginMessageListener {
             return;
         }
 
-        String actionName = readVarIntString(message);
-        if (actionName == null || actionName.isEmpty()) {
+        String actionName;
+        try {
+            actionName = KeybindPacketCodec.decodeAction(message);
+        } catch (IOException e) {
+            plugin.getLogger().warning("Invalid packet from " + player.getName() + ": decode failed");
+            return;
+        }
+
+        if (actionName.isEmpty()) {
             plugin.getLogger().warning("Invalid packet from " + player.getName() + ": empty action");
             return;
         }
@@ -43,28 +51,5 @@ public class PacketListener implements PluginMessageListener {
         plugin.getServer().getScheduler().runTask(plugin, () -> {
             actionExecutor.execute(player, actionName);
         });
-    }
-
-    /**
-     * Read a VarInt-prefixed UTF-8 string from byte array.
-     * This matches Minecraft's FriendlyByteBuf.writeUtf() format used by CustomPacketPayload.
-     */
-    private String readVarIntString(byte[] data) {
-        int index = 0;
-        int length = 0;
-        int shift = 0;
-
-        // Decode VarInt
-        while (index < data.length) {
-            byte b = data[index++];
-            length |= (b & 0x7F) << shift;
-            if ((b & 0x80) == 0) break;
-            shift += 7;
-            if (shift > 21) return null; // VarInt too large
-        }
-
-        if (length <= 0 || index + length > data.length) return null;
-
-        return new String(data, index, length, StandardCharsets.UTF_8);
     }
 }

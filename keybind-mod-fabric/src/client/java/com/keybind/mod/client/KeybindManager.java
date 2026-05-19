@@ -1,8 +1,10 @@
 package com.keybind.mod.client;
 
 import com.keybind.mod.KeybindMod;
+import com.keybind.mod.common.KeybindActionDefinition;
+import com.keybind.mod.common.state.KeybindClientState;
+import com.keybind.mod.common.sync.KeybindSyncPlan;
 import com.keybind.mod.network.KeybindActionPayload;
-import com.keybind.mod.network.KeybindSyncPayload;
 import com.mojang.blaze3d.platform.InputConstants;
 import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
 import net.minecraft.client.KeyMapping;
@@ -20,16 +22,12 @@ public class KeybindManager {
 
     private static final KeyMapping.Category KEYBIND_CATEGORY =
             KeyMapping.Category.register(Identifier.fromNamespaceAndPath(KeybindMod.MOD_ID, "actions"));
+    private static final KeybindClientState CLIENT_STATE = new KeybindClientState();
 
     private final Map<String, KeyMapping> registeredMappings = new LinkedHashMap<>();
-    private static final Map<String, String> displayNames = new HashMap<>();
-
-    private String currentServer = null;
-    private boolean synced = false;
 
     public static String getDisplayName(String actionName) {
-        if (actionName == null) return null;
-        return displayNames.get(actionName.toLowerCase());
+        return CLIENT_STATE.getDisplayName(actionName);
     }
 
     public void registerAllKnownActions() {
@@ -126,68 +124,42 @@ public class KeybindManager {
         }
     }
 
-    public void onServerSync(String serverAddress, String serverVersion, List<KeybindSyncPayload.ActionEntry> actions) {
+    public void onServerSync(String serverAddress, String serverVersion, List<KeybindActionDefinition> actions) {
         KeybindMod.LOGGER.info("Starting sync for: {} (Version: {}, Actions: {})", serverAddress, serverVersion, actions.size());
-        this.currentServer = serverAddress;
-        this.synced = true;
 
         Map<String, String> savedBindings = ServerKeybindStorage.load(serverAddress);
-        if (savedBindings == null) savedBindings = new LinkedHashMap<>();
+        KeybindSyncPlan syncPlan = CLIENT_STATE.startSync(serverAddress, savedBindings, registeredMappings.keySet(), actions);
 
-        Set<String> incomingActions = new HashSet<>();
-        List<String> newActions = new ArrayList<>();
-        boolean configChanged = false;
-
-        for (KeybindSyncPayload.ActionEntry action : actions) {
-            String name = action.name();
-            incomingActions.add(name);
-            displayNames.put(name.toLowerCase(), action.displayName());
-            
-            String keyName;
-            if (savedBindings.containsKey(name)) {
-                keyName = savedBindings.get(name);
-            } else {
-                keyName = action.defaultKey();
-                savedBindings.put(name, keyName);
-                newActions.add(name);
-                configChanged = true;
-                KeybindMod.LOGGER.info("New action found: {} (default: {})", name, keyName);
+        for (KeybindActionDefinition action : actions) {
+            String keyName = syncPlan.bindings().get(action.name());
+            if (syncPlan.newActions().contains(action.name())) {
+                KeybindMod.LOGGER.info("New action found: {} (default: {})", action.name(), keyName);
             }
-
             if (keyName != null && !keyName.isEmpty()) {
-                registerAction(name, keyName);
+                registerAction(action.name(), keyName);
             }
         }
 
         Minecraft client = Minecraft.getInstance();
-        Iterator<Map.Entry<String, KeyMapping>> it = registeredMappings.entrySet().iterator();
-        while (it.hasNext()) {
-            Map.Entry<String, KeyMapping> entry = it.next();
-            String actionName = entry.getKey();
-            if (!incomingActions.contains(actionName)) {
-                KeybindMod.LOGGER.info("Removing obsolete action from client: {}", actionName);
-                if (client.options != null) {
-                    removeKeyMapping(client, entry.getValue());
-                }
-                it.remove();
-                displayNames.remove(actionName.toLowerCase());
-                if (savedBindings.containsKey(actionName)) {
-                    savedBindings.remove(actionName);
-                    configChanged = true;
-                    KeybindMod.LOGGER.info("Removed obsolete action from saved config: {}", actionName);
-                }
+        for (String actionName : syncPlan.removedActions()) {
+            KeyMapping mapping = registeredMappings.remove(actionName);
+            KeybindMod.LOGGER.info("Removing obsolete action from client: {}", actionName);
+            if (mapping != null && client.options != null) {
+                removeKeyMapping(client, mapping);
             }
+            CLIENT_STATE.removeAction(actionName);
+            KeybindMod.LOGGER.info("Removed obsolete action from saved config: {}", actionName);
         }
 
-        if (configChanged) {
-            ServerKeybindStorage.save(serverAddress, savedBindings);
+        if (syncPlan.configChanged()) {
+            ServerKeybindStorage.save(serverAddress, syncPlan.bindings());
         }
         
         KeyMapping.resetMapping();
         
         if (client.player != null) {
             String msg = "§a[Keybind] Synced " + actions.size() + " actions.";
-            if (!newActions.isEmpty()) msg += " §7(" + newActions.size() + " new)";
+            if (!syncPlan.newActions().isEmpty()) msg += " §7(" + syncPlan.newActions().size() + " new)";
             client.player.sendSystemMessage(Component.literal(msg));
         }
         
@@ -195,38 +167,35 @@ public class KeybindManager {
     }
 
     public void onDisconnect() {
-        currentServer = null;
-        synced = false;
+        CLIENT_STATE.clearSync();
         KeybindMod.LOGGER.info("Disconnected — keybind sync cleared.");
     }
 
     public void tick(Minecraft client) {
-        if (!synced || client.player == null || client.screen != null) return;
+        if (!CLIENT_STATE.isSynced() || client.player == null || client.screen != null) return;
 
         boolean changed = false;
         for (Map.Entry<String, KeyMapping> entry : registeredMappings.entrySet()) {
             String action = entry.getKey();
             KeyMapping mapping = entry.getValue();
 
-            if (currentServer != null) {
+            if (CLIENT_STATE.getCurrentServer() != null) {
                 String currentKey = mapping.saveString();
-                Map<String, String> saved = ServerKeybindStorage.load(currentServer);
-                if (saved != null && !currentKey.equals(saved.get(action))) {
-                    saved.put(action, currentKey);
-                    ServerKeybindStorage.save(currentServer, saved);
-                    changed = true;
-                }
+                changed |= CLIENT_STATE.updateBinding(action, currentKey);
             }
 
             while (mapping.consumeClick()) {
                 sendAction(client, action);
             }
         }
-        if (changed) KeyMapping.resetMapping();
+        if (changed) {
+            ServerKeybindStorage.save(CLIENT_STATE.getCurrentServer(), CLIENT_STATE.snapshotPersistedBindings());
+            KeyMapping.resetMapping();
+        }
     }
 
     public boolean isSynced() {
-        return synced;
+        return CLIENT_STATE.isSynced();
     }
 
     private void sendAction(Minecraft client, String action) {

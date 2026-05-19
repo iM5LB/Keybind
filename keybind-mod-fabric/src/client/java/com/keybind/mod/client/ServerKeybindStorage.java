@@ -3,6 +3,8 @@ package com.keybind.mod.client;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.keybind.mod.KeybindMod;
+import com.keybind.mod.common.config.KeybindPaths;
+import com.keybind.mod.common.config.ServerKeybindFileData;
 import net.fabricmc.loader.api.FabricLoader;
 
 import java.io.IOException;
@@ -16,14 +18,13 @@ import java.util.Map;
 public class ServerKeybindStorage {
 
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
-    private static final String SERVERS_DIR = "keybind-servers";
 
     public static Map<String, String> load(String serverAddress) {
         Path path = getPath(serverAddress);
         if (!Files.exists(path)) return null;
 
         try (Reader reader = Files.newBufferedReader(path)) {
-            ServerConfig config = GSON.fromJson(reader, ServerConfig.class);
+            ServerKeybindFileData config = GSON.fromJson(reader, ServerKeybindFileData.class);
             return (config != null) ? config.bindings : null;
         } catch (IOException e) {
             KeybindMod.LOGGER.error("Failed to load config for: {}", serverAddress, e);
@@ -33,7 +34,7 @@ public class ServerKeybindStorage {
 
     public static void save(String serverAddress, Map<String, String> bindings) {
         Path path = getPath(serverAddress);
-        ServerConfig config = new ServerConfig();
+        ServerKeybindFileData config = new ServerKeybindFileData();
         config.serverAddress = serverAddress;
         config.bindings = bindings;
 
@@ -49,13 +50,13 @@ public class ServerKeybindStorage {
 
     public static Map<String, String> loadAllActions() {
         Map<String, String> allActions = new LinkedHashMap<>();
-        Path dir = FabricLoader.getInstance().getConfigDir().resolve(SERVERS_DIR);
+        Path dir = KeybindPaths.serversDir(FabricLoader.getInstance().getConfigDir());
         if (!Files.exists(dir)) return allActions;
 
         try (var stream = Files.list(dir)) {
             stream.filter(path -> path.toString().endsWith(".json")).forEach(path -> {
                 try (Reader reader = Files.newBufferedReader(path)) {
-                    ServerConfig config = GSON.fromJson(reader, ServerConfig.class);
+                    ServerKeybindFileData config = GSON.fromJson(reader, ServerKeybindFileData.class);
                     if (config != null && config.bindings != null) {
                         allActions.putAll(config.bindings);
                     }
@@ -70,12 +71,6 @@ public class ServerKeybindStorage {
     }
 
     private static Path getPath(String serverAddress) {
-        String safeFileName = serverAddress.replaceAll("[^a-zA-Z0-9._\\-]", "_") + ".json";
-        return FabricLoader.getInstance().getConfigDir().resolve(SERVERS_DIR).resolve(safeFileName);
-    }
-
-    private static class ServerConfig {
-        String serverAddress;
-        Map<String, String> bindings = new LinkedHashMap<>();
+        return KeybindPaths.serverConfig(FabricLoader.getInstance().getConfigDir(), serverAddress);
     }
 }
