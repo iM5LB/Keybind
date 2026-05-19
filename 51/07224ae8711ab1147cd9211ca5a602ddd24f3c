@@ -1,0 +1,19 @@
+README.md
+  s_433245794fb734::t_46c77139f78354 138
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "5107224ae8711ab1147cd9211ca5a602ddd24f3c",
+  "prompts": {},
+  "sessions": {
+    "s_433245794fb734": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e2582-9ee3-7150-91ff-15daa3ba55bb",
+        "model": "gpt-5.5"
+      },
+      "human_author": "iM5LB <14554378@uofn.edu.om>"
+    }
+  }
+}
