@@ -1,28 +1,28 @@
 package com.keybind.mod.network;
 
 import com.keybind.mod.KeybindMod;
-import net.minecraft.network.PacketByteBuf;
-import net.minecraft.network.codec.PacketCodec;
-import net.minecraft.network.packet.CustomPayload;
+import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.network.codec.StreamCodec;
+import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 
-public record KeybindActionPayload(String action) implements CustomPayload {
+public record KeybindActionPayload(String action) implements CustomPacketPayload {
 
-    public static final CustomPayload.Id<KeybindActionPayload> ID =
-            new CustomPayload.Id<>(KeybindMod.CHANNEL);
+    public static final CustomPacketPayload.Type<KeybindActionPayload> TYPE =
+            new CustomPacketPayload.Type<>(KeybindMod.CHANNEL);
 
-    public static final PacketCodec<PacketByteBuf, KeybindActionPayload> CODEC =
-            PacketCodec.of(KeybindActionPayload::write, KeybindActionPayload::read);
+    public static final StreamCodec<FriendlyByteBuf, KeybindActionPayload> STREAM_CODEC =
+            StreamCodec.of(KeybindActionPayload::write, KeybindActionPayload::read);
 
-    private static KeybindActionPayload read(PacketByteBuf buf) {
-        return new KeybindActionPayload(buf.readString());
+    private static KeybindActionPayload read(FriendlyByteBuf buf) {
+        return new KeybindActionPayload(buf.readUtf());
     }
 
-    private static void write(KeybindActionPayload payload, PacketByteBuf buf) {
-        buf.writeString(payload.action);
+    private static void write(FriendlyByteBuf buf, KeybindActionPayload payload) {
+        buf.writeUtf(payload.action);
     }
 
     @Override
-    public Id<? extends CustomPayload> getId() {
-        return ID;
+    public Type<? extends CustomPacketPayload> type() {
+        return TYPE;
     }
 }

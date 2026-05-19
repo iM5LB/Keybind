@@ -2,46 +2,46 @@ package com.keybind.mod.network;
 
 import com.keybind.mod.KeybindMod;
 import com.keybind.mod.common.KeybindActionDefinition;
-import net.minecraft.network.PacketByteBuf;
-import net.minecraft.network.codec.PacketCodec;
-import net.minecraft.network.packet.CustomPayload;
+import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.network.codec.StreamCodec;
+import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 
 import java.util.ArrayList;
 import java.util.List;
 
-public record KeybindSyncPayload(String version, List<KeybindActionDefinition> actions) implements CustomPayload {
+public record KeybindSyncPayload(String version, List<KeybindActionDefinition> actions) implements CustomPacketPayload {
 
-    public static final CustomPayload.Id<KeybindSyncPayload> ID =
-            new CustomPayload.Id<>(KeybindMod.SYNC_CHANNEL);
+    public static final CustomPacketPayload.Type<KeybindSyncPayload> TYPE =
+            new CustomPacketPayload.Type<>(KeybindMod.SYNC_CHANNEL);
 
-    public static final PacketCodec<PacketByteBuf, KeybindSyncPayload> CODEC =
-            PacketCodec.of(KeybindSyncPayload::write, KeybindSyncPayload::read);
+    public static final StreamCodec<FriendlyByteBuf, KeybindSyncPayload> STREAM_CODEC =
+            StreamCodec.of(KeybindSyncPayload::write, KeybindSyncPayload::read);
 
-    private static KeybindSyncPayload read(PacketByteBuf buf) {
-        String version = buf.readString();
+    private static KeybindSyncPayload read(FriendlyByteBuf buf) {
+        String version = buf.readUtf();
         int count = buf.readVarInt();
         List<KeybindActionDefinition> actions = new ArrayList<>(count);
         for (int i = 0; i < count; i++) {
-            String name = buf.readString();
-            String displayName = buf.readString();
-            String defaultKey = buf.readString();
+            String name = buf.readUtf();
+            String displayName = buf.readUtf();
+            String defaultKey = buf.readUtf();
             actions.add(new KeybindActionDefinition(name, displayName, defaultKey));
         }
         return new KeybindSyncPayload(version, actions);
     }
 
-    private static void write(KeybindSyncPayload payload, PacketByteBuf buf) {
-        buf.writeString(payload.version);
+    private static void write(FriendlyByteBuf buf, KeybindSyncPayload payload) {
+        buf.writeUtf(payload.version);
         buf.writeVarInt(payload.actions.size());
         for (KeybindActionDefinition entry : payload.actions) {
-            buf.writeString(entry.name());
-            buf.writeString(entry.displayName());
-            buf.writeString(entry.defaultKey());
+            buf.writeUtf(entry.name());
+            buf.writeUtf(entry.displayName());
+            buf.writeUtf(entry.defaultKey());
         }
     }
 
     @Override
-    public Id<? extends CustomPayload> getId() {
-        return ID;
+    public Type<? extends CustomPacketPayload> type() {
+        return TYPE;
     }
 }

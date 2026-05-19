@@ -6,8 +6,10 @@ Bind keys to server-side commands. Press a key, the server runs a command.
 
 | Component | Environment | Platform |
 | :--- | :--- | :--- |
-| `KeybindMod` | **Client only** | Fabric (MC 26.1.2) |
-| `KeybindPlugin` | **Server only** | Paper 1.18.2+ |
+| `KeybindMod` | **Client Side** | Fabric (MC 1.21.x & 26.x) |
+| `KeybindPlugin` | **Server Side** | Paper 1.18.2+ |
+
+> **Note**: Both the **Server Plugin** and the **Client Mod** must be installed for the mod to function. On servers without the plugin, no keybinds will be registered or available.
 
 ---
 
@@ -21,6 +23,7 @@ Bind keys to server-side commands. Press a key, the server runs a command.
 - 🔐 **Permission Support**: Each action supports an optional extra permission node on top of `keybind.use`.
 - 📡 **Plugin Messaging**: Uses `keybind:main` / `keybind:sync` plugin message channels. Falls back to `/kbind <action>` if the packet channel is unavailable.
 - 🧹 **Stale Action Cleanup**: Obsolete actions from previous sessions are automatically removed from the Controls menu and saved config.
+- 🌍 **Universal Support**: Compatible with Minecraft 1.21.x and 26.* using dynamic constructor discovery.
 
 ---
 
@@ -140,11 +143,11 @@ Output jars:
 - `keybind-plugin/build/libs/KeybindPlugin-1.0.0.jar`
 - `keybind-mod-fabric/build/libs/KeybindMod-1.0.0.jar`
 
-Requires Java 17+ for the plugin, Java 25+ for the mod.
+Requires Java 17+ for the plugin, Java 21+ for the mod.
 
 ---
 
-## 🔒 Security
+##  Security
 
 - Action names are validated server-side against `^[a-zA-Z0-9_]+$` — arbitrary input is rejected.
 - Packet length is capped at 256 bytes.

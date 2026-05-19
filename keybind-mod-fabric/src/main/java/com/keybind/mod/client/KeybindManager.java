@@ -7,12 +7,12 @@ import com.keybind.mod.common.sync.KeybindSyncPlan;
 import com.keybind.mod.network.KeybindActionPayload;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.option.GameOptions;
-import net.minecraft.client.option.KeyBinding;
-import net.minecraft.client.util.InputUtil;
-import net.minecraft.text.Text;
-import net.minecraft.util.Identifier;
+import com.mojang.blaze3d.platform.InputConstants;
+import net.minecraft.client.KeyMapping;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.Options;
+import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceLocation;
 import org.apache.commons.lang3.ArrayUtils;
 import org.lwjgl.glfw.GLFW;
 
@@ -21,10 +21,10 @@ import java.util.*;
 
 public class KeybindManager {
 
-    private static final String KEYBIND_CATEGORY = "key.categories." + KeybindMod.MOD_ID;
+    private static final String KEYBIND_CATEGORY = "key.categories.keybind.actions";
     private static final KeybindClientState CLIENT_STATE = new KeybindClientState();
 
-    private final Map<String, KeyBinding> registeredMappings = new LinkedHashMap<>();
+    private final Map<String, KeyMapping> registeredMappings = new LinkedHashMap<>();
 
     public static String getDisplayName(String actionName) {
         return CLIENT_STATE.getDisplayName(actionName);
@@ -43,19 +43,14 @@ public class KeybindManager {
     }
 
     private void registerAction(String actionName, String keyName) {
-        InputUtil.Key key = resolveKey(keyName);
+        InputConstants.Key key = resolveKey(keyName);
 
         if (registeredMappings.containsKey(actionName)) {
-            registeredMappings.get(actionName).setBoundKey(key);
+            registeredMappings.get(actionName).setKey(key);
         } else {
-            KeyBinding mapping = new KeyBinding(
-                    "key.keybind." + actionName,
-                    key.getCategory(),
-                    key.getCode(),
-                    KEYBIND_CATEGORY
-            );
+            KeyMapping mapping = createKeyMapping("key.keybind." + actionName, key, KEYBIND_CATEGORY);
             
-            MinecraftClient client = MinecraftClient.getInstance();
+            Minecraft client = Minecraft.getInstance();
             if (client.options == null) {
                 KeyBindingHelper.registerKeyBinding(mapping);
             } else {
@@ -66,14 +61,62 @@ public class KeybindManager {
         }
     }
 
-    private void injectKeyMapping(MinecraftClient client, KeyBinding mapping) {
+    private KeyMapping createKeyMapping(String name, InputConstants.Key key, String category) {
+        // Try the most likely constructors using reflection to avoid NoSuchMethodError crashes at load time
+        try {
+            // Try 3-arg (String, int, String) - 1.21.4 style
+            return new KeyMapping(name, key.getValue(), category);
+        } catch (NoSuchMethodError | Exception e) {
+            return createKeyMappingFallback(name, key, category);
+        }
+    }
+
+    private KeyMapping createKeyMappingFallback(String name, InputConstants.Key key, String category) {
+        KeybindMod.LOGGER.info("Attempting KeyMapping constructor discovery for {}", name);
+        for (java.lang.reflect.Constructor<?> constructor : KeyMapping.class.getConstructors()) {
+            Class<?>[] params = constructor.getParameterTypes();
+            try {
+                // Try 4-arg (String, InputConstants.Type, int, String) - 1.21.1 style
+                if (params.length == 4 && params[0] == String.class && params[2] == int.class && params[3] == String.class) {
+                    return (KeyMapping) constructor.newInstance(name, key.getType(), key.getValue(), category);
+                }
+                // Try 3-arg (String, InputConstants.Key, String) - Potential newer style
+                if (params.length == 3 && params[0] == String.class && params[2] == String.class) {
+                    // Check if middle param is Key or something similar
+                    if (params[1].isAssignableFrom(key.getClass())) {
+                        return (KeyMapping) constructor.newInstance(name, key, category);
+                    }
+                }
+            } catch (Exception ex) {
+                KeybindMod.LOGGER.debug("Failed to invoke constructor {}: {}", constructor, ex.getMessage());
+            }
+        }
+        
+        // Fallback to a very loose match if nothing else works
+        try {
+            java.lang.reflect.Constructor<KeyMapping> ctor = (java.lang.reflect.Constructor<KeyMapping>) KeyMapping.class.getConstructors()[0];
+            Object[] args = new Object[ctor.getParameterCount()];
+            for (int i = 0; i < args.length; i++) {
+                Class<?> type = ctor.getParameterTypes()[i];
+                if (type == String.class) args[i] = (i == 0 ? name : category);
+                else if (type == int.class) args[i] = key.getValue();
+                else if (type.isInstance(key)) args[i] = key;
+                else if (type.isInstance(key.getType())) args[i] = key.getType();
+            }
+            return ctor.newInstance(args);
+        } catch (Exception ex) {
+            throw new RuntimeException("CRITICAL: Failed to create KeyMapping for " + name + " on this Minecraft version.", ex);
+        }
+    }
+
+    private void injectKeyMapping(Minecraft client, KeyMapping mapping) {
         try {
             Field field = null;
             try {
-                field = GameOptions.class.getDeclaredField("allKeys");
+                field = Options.class.getDeclaredField("keyMappings");
             } catch (NoSuchFieldException e) {
-                for (Field f : GameOptions.class.getDeclaredFields()) {
-                    if (f.getType() == KeyBinding[].class) {
+                for (Field f : Options.class.getDeclaredFields()) {
+                    if (f.getType() == KeyMapping[].class) {
                         field = f;
                         break;
                     }
@@ -82,12 +125,12 @@ public class KeybindManager {
 
             if (field != null) {
                 field.setAccessible(true);
-                KeyBinding[] original = (KeyBinding[]) field.get(client.options);
+                KeyMapping[] original = (KeyMapping[]) field.get(client.options);
                 if (!ArrayUtils.contains(original, mapping)) {
-                    KeyBinding[] updated = ArrayUtils.add(original, mapping);
+                    KeyMapping[] updated = ArrayUtils.add(original, mapping);
                     field.set(client.options, updated);
-                    KeyBinding.updateKeysByCode();
-                    KeybindMod.LOGGER.info("Dynamically registered action: {}", mapping.getTranslationKey());
+                    KeyMapping.resetMapping();
+                    KeybindMod.LOGGER.info("Dynamically registered action: {}", mapping.getName());
                 }
             }
         } catch (Exception e) {
@@ -95,14 +138,14 @@ public class KeybindManager {
         }
     }
 
-    private void removeKeyMapping(MinecraftClient client, KeyBinding mapping) {
+    private void removeKeyMapping(Minecraft client, KeyMapping mapping) {
         try {
             Field field = null;
             try {
-                field = GameOptions.class.getDeclaredField("allKeys");
+                field = Options.class.getDeclaredField("keyMappings");
             } catch (NoSuchFieldException e) {
-                for (Field f : GameOptions.class.getDeclaredFields()) {
-                    if (f.getType() == KeyBinding[].class) {
+                for (Field f : Options.class.getDeclaredFields()) {
+                    if (f.getType() == KeyMapping[].class) {
                         field = f;
                         break;
                     }
@@ -111,12 +154,12 @@ public class KeybindManager {
 
             if (field != null) {
                 field.setAccessible(true);
-                KeyBinding[] original = (KeyBinding[]) field.get(client.options);
+                KeyMapping[] original = (KeyMapping[]) field.get(client.options);
                 if (ArrayUtils.contains(original, mapping)) {
-                    KeyBinding[] updated = ArrayUtils.removeElement(original, mapping);
+                    KeyMapping[] updated = ArrayUtils.removeElement(original, mapping);
                     field.set(client.options, updated);
-                    KeyBinding.updateKeysByCode();
-                    KeybindMod.LOGGER.info("Dynamically removed action: {}", mapping.getTranslationKey());
+                    KeyMapping.resetMapping();
+                    KeybindMod.LOGGER.info("Dynamically removed action: {}", mapping.getName());
                 }
             }
         } catch (Exception e) {
@@ -140,9 +183,9 @@ public class KeybindManager {
             }
         }
 
-        MinecraftClient client = MinecraftClient.getInstance();
+        Minecraft client = Minecraft.getInstance();
         for (String actionName : syncPlan.removedActions()) {
-            KeyBinding mapping = registeredMappings.remove(actionName);
+            KeyMapping mapping = registeredMappings.remove(actionName);
             KeybindMod.LOGGER.info("Removing obsolete action from client: {}", actionName);
             if (mapping != null && client.options != null) {
                 removeKeyMapping(client, mapping);
@@ -155,12 +198,12 @@ public class KeybindManager {
             ServerKeybindStorage.save(serverAddress, syncPlan.bindings());
         }
         
-        KeyBinding.updateKeysByCode();
+        KeyMapping.resetMapping();
         
         if (client.player != null) {
             String msg = "§a[Keybind] Synced " + actions.size() + " actions.";
             if (!syncPlan.newActions().isEmpty()) msg += " §7(" + syncPlan.newActions().size() + " new)";
-            client.player.sendMessage(Text.literal(msg), false);
+            client.player.displayClientMessage(Component.literal(msg), false);
         }
         
         KeybindMod.LOGGER.info("Successfully synced {} actions for: {}", actions.size(), serverAddress);
@@ -171,26 +214,26 @@ public class KeybindManager {
         KeybindMod.LOGGER.info("Disconnected — keybind sync cleared.");
     }
 
-    public void tick(MinecraftClient client) {
-        if (!CLIENT_STATE.isSynced() || client.player == null || client.currentScreen != null) return;
+    public void tick(Minecraft client) {
+        if (!CLIENT_STATE.isSynced() || client.player == null || client.screen != null) return;
 
         boolean changed = false;
-        for (Map.Entry<String, KeyBinding> entry : registeredMappings.entrySet()) {
+        for (Map.Entry<String, KeyMapping> entry : registeredMappings.entrySet()) {
             String action = entry.getKey();
-            KeyBinding mapping = entry.getValue();
+            KeyMapping mapping = entry.getValue();
 
             if (CLIENT_STATE.getCurrentServer() != null) {
-                String currentKey = mapping.getBoundKeyTranslationKey();
+                String currentKey = mapping.saveString();
                 changed |= CLIENT_STATE.updateBinding(action, currentKey);
             }
 
-            while (mapping.wasPressed()) {
+            while (mapping.consumeClick()) {
                 sendAction(client, action);
             }
         }
         if (changed) {
             ServerKeybindStorage.save(CLIENT_STATE.getCurrentServer(), CLIENT_STATE.snapshotPersistedBindings());
-            KeyBinding.updateKeysByCode();
+            KeyMapping.resetMapping();
         }
     }
 
@@ -198,179 +241,179 @@ public class KeybindManager {
         return CLIENT_STATE.isSynced();
     }
 
-    private void sendAction(MinecraftClient client, String action) {
+    private void sendAction(Minecraft client, String action) {
         if (client.player == null) return;
 
         try {
             ClientPlayNetworking.send(new KeybindActionPayload(action));
             KeybindMod.LOGGER.debug("Sent action: {}", action);
         } catch (Exception e) {
-            client.player.networkHandler.sendCommand("kbind " + action);
+            client.player.connection.sendCommand("kbind " + action);
             KeybindMod.LOGGER.debug("Sent command: /kbind {}", action);
         }
     }
 
-    private InputUtil.Key resolveKey(String keyName) {
-        if (keyName == null || keyName.isEmpty()) return InputUtil.UNKNOWN_KEY;
+    private InputConstants.Key resolveKey(String keyName) {
+        if (keyName == null || keyName.isEmpty()) return InputConstants.UNKNOWN;
         String name = keyName.toUpperCase();
 
         // Check for internal Minecraft key strings first
         if (name.contains(".")) {
             try {
-                return InputUtil.fromTranslationKey(keyName);
+                return InputConstants.getKey(keyName);
             } catch (Exception ignored) {}
         }
 
         // Mouse Buttons
         return switch (name) {
-            case "MOUSE_LEFT", "MOUSE_1" -> InputUtil.Type.MOUSE.createFromCode(0);
-            case "MOUSE_RIGHT", "MOUSE_2" -> InputUtil.Type.MOUSE.createFromCode(1);
-            case "MOUSE_MIDDLE", "MOUSE_3" -> InputUtil.Type.MOUSE.createFromCode(2);
-            case "MOUSE_4" -> InputUtil.Type.MOUSE.createFromCode(3);
-            case "MOUSE_5" -> InputUtil.Type.MOUSE.createFromCode(4);
-            case "MOUSE_6" -> InputUtil.Type.MOUSE.createFromCode(5);
-            case "MOUSE_7" -> InputUtil.Type.MOUSE.createFromCode(6);
-            case "MOUSE_8" -> InputUtil.Type.MOUSE.createFromCode(7);
+            case "MOUSE_LEFT", "MOUSE_1" -> InputConstants.Type.MOUSE.getOrCreate(0);
+            case "MOUSE_RIGHT", "MOUSE_2" -> InputConstants.Type.MOUSE.getOrCreate(1);
+            case "MOUSE_MIDDLE", "MOUSE_3" -> InputConstants.Type.MOUSE.getOrCreate(2);
+            case "MOUSE_4" -> InputConstants.Type.MOUSE.getOrCreate(3);
+            case "MOUSE_5" -> InputConstants.Type.MOUSE.getOrCreate(4);
+            case "MOUSE_6" -> InputConstants.Type.MOUSE.getOrCreate(5);
+            case "MOUSE_7" -> InputConstants.Type.MOUSE.getOrCreate(6);
+            case "MOUSE_8" -> InputConstants.Type.MOUSE.getOrCreate(7);
 
             // Function Keys
-            case "F1" -> InputUtil.Type.KEYSYM.createFromCode(GLFW.GLFW_KEY_F1);
-            case "F2" -> InputUtil.Type.KEYSYM.createFromCode(GLFW.GLFW_KEY_F2);
-            case "F3" -> InputUtil.Type.KEYSYM.createFromCode(GLFW.GLFW_KEY_F3);
-            case "F4" -> InputUtil.Type.KEYSYM.createFromCode(GLFW.GLFW_KEY_F4);
-            case "F5" -> InputUtil.Type.KEYSYM.createFromCode(GLFW.GLFW_KEY_F5);
-            case "F6" -> InputUtil.Type.KEYSYM.createFromCode(GLFW.GLFW_KEY_F6);
-            case "F7" -> InputUtil.Type.KEYSYM.createFromCode(GLFW.GLFW_KEY_F7);
-            case "F8" -> InputUtil.Type.KEYSYM.createFromCode(GLFW.GLFW_KEY_F8);
-            case "F9" -> InputUtil.Type.KEYSYM.createFromCode(GLFW.GLFW_KEY_F9);
-            case "F10" -> InputUtil.Type.KEYSYM.createFromCode(GLFW.GLFW_KEY_F10);
-            case "F11" -> InputUtil.Type.KEYSYM.createFromCode(GLFW.GLFW_KEY_F11);
-            case "F12" -> InputUtil.Type.KEYSYM.createFromCode(GLFW.GLFW_KEY_F12);
-            case "F13" -> InputUtil.Type.KEYSYM.createFromCode(GLFW.GLFW_KEY_F13);
-            case "F14" -> InputUtil.Type.KEYSYM.createFromCode(GLFW.GLFW_KEY_F14);
-            case "F15" -> InputUtil.Type.KEYSYM.createFromCode(GLFW.GLFW_KEY_F15);
-            case "F16" -> InputUtil.Type.KEYSYM.createFromCode(GLFW.GLFW_KEY_F16);
-            case "F17" -> InputUtil.Type.KEYSYM.createFromCode(GLFW.GLFW_KEY_F17);
-            case "F18" -> InputUtil.Type.KEYSYM.createFromCode(GLFW.GLFW_KEY_F18);
-            case "F19" -> InputUtil.Type.KEYSYM.createFromCode(GLFW.GLFW_KEY_F19);
-            case "F20" -> InputUtil.Type.KEYSYM.createFromCode(GLFW.GLFW_KEY_F20);
-            case "F21" -> InputUtil.Type.KEYSYM.createFromCode(GLFW.GLFW_KEY_F21);
-            case "F22" -> InputUtil.Type.KEYSYM.createFromCode(GLFW.GLFW_KEY_F22);
-            case "F23" -> InputUtil.Type.KEYSYM.createFromCode(GLFW.GLFW_KEY_F23);
-            case "F24" -> InputUtil.Type.KEYSYM.createFromCode(GLFW.GLFW_KEY_F24);
-            case "F25" -> InputUtil.Type.KEYSYM.createFromCode(GLFW.GLFW_KEY_F25);
+            case "F1" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_F1);
+            case "F2" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_F2);
+            case "F3" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_F3);
+            case "F4" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_F4);
+            case "F5" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_F5);
+            case "F6" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_F6);
+            case "F7" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_F7);
+            case "F8" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_F8);
+            case "F9" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_F9);
+            case "F10" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_F10);
+            case "F11" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_F11);
+            case "F12" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_F12);
+            case "F13" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_F13);
+            case "F14" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_F14);
+            case "F15" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_F15);
+            case "F16" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_F16);
+            case "F17" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_F17);
+            case "F18" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_F18);
+            case "F19" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_F19);
+            case "F20" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_F20);
+            case "F21" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_F21);
+            case "F22" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_F22);
+            case "F23" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_F23);
+            case "F24" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_F24);
+            case "F25" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_F25);
 
             // Alphanumeric
-            case "A" -> InputUtil.Type.KEYSYM.createFromCode(GLFW.GLFW_KEY_A);
-            case "B" -> InputUtil.Type.KEYSYM.createFromCode(GLFW.GLFW_KEY_B);
-            case "C" -> InputUtil.Type.KEYSYM.createFromCode(GLFW.GLFW_KEY_C);
-            case "D" -> InputUtil.Type.KEYSYM.createFromCode(GLFW.GLFW_KEY_D);
-            case "E" -> InputUtil.Type.KEYSYM.createFromCode(GLFW.GLFW_KEY_E);
-            case "F" -> InputUtil.Type.KEYSYM.createFromCode(GLFW.GLFW_KEY_F);
-            case "G" -> InputUtil.Type.KEYSYM.createFromCode(GLFW.GLFW_KEY_G);
-            case "H" -> InputUtil.Type.KEYSYM.createFromCode(GLFW.GLFW_KEY_H);
-            case "I" -> InputUtil.Type.KEYSYM.createFromCode(GLFW.GLFW_KEY_I);
-            case "J" -> InputUtil.Type.KEYSYM.createFromCode(GLFW.GLFW_KEY_J);
-            case "K" -> InputUtil.Type.KEYSYM.createFromCode(GLFW.GLFW_KEY_K);
-            case "L" -> InputUtil.Type.KEYSYM.createFromCode(GLFW.GLFW_KEY_L);
-            case "M" -> InputUtil.Type.KEYSYM.createFromCode(GLFW.GLFW_KEY_M);
-            case "N" -> InputUtil.Type.KEYSYM.createFromCode(GLFW.GLFW_KEY_N);
-            case "O" -> InputUtil.Type.KEYSYM.createFromCode(GLFW.GLFW_KEY_O);
-            case "P" -> InputUtil.Type.KEYSYM.createFromCode(GLFW.GLFW_KEY_P);
-            case "Q" -> InputUtil.Type.KEYSYM.createFromCode(GLFW.GLFW_KEY_Q);
-            case "R" -> InputUtil.Type.KEYSYM.createFromCode(GLFW.GLFW_KEY_R);
-            case "S" -> InputUtil.Type.KEYSYM.createFromCode(GLFW.GLFW_KEY_S);
-            case "T" -> InputUtil.Type.KEYSYM.createFromCode(GLFW.GLFW_KEY_T);
-            case "U" -> InputUtil.Type.KEYSYM.createFromCode(GLFW.GLFW_KEY_U);
-            case "V" -> InputUtil.Type.KEYSYM.createFromCode(GLFW.GLFW_KEY_V);
-            case "W" -> InputUtil.Type.KEYSYM.createFromCode(GLFW.GLFW_KEY_W);
-            case "X" -> InputUtil.Type.KEYSYM.createFromCode(GLFW.GLFW_KEY_X);
-            case "Y" -> InputUtil.Type.KEYSYM.createFromCode(GLFW.GLFW_KEY_Y);
-            case "Z" -> InputUtil.Type.KEYSYM.createFromCode(GLFW.GLFW_KEY_Z);
-            case "0" -> InputUtil.Type.KEYSYM.createFromCode(GLFW.GLFW_KEY_0);
-            case "1" -> InputUtil.Type.KEYSYM.createFromCode(GLFW.GLFW_KEY_1);
-            case "2" -> InputUtil.Type.KEYSYM.createFromCode(GLFW.GLFW_KEY_2);
-            case "3" -> InputUtil.Type.KEYSYM.createFromCode(GLFW.GLFW_KEY_3);
-            case "4" -> InputUtil.Type.KEYSYM.createFromCode(GLFW.GLFW_KEY_4);
-            case "5" -> InputUtil.Type.KEYSYM.createFromCode(GLFW.GLFW_KEY_5);
-            case "6" -> InputUtil.Type.KEYSYM.createFromCode(GLFW.GLFW_KEY_6);
-            case "7" -> InputUtil.Type.KEYSYM.createFromCode(GLFW.GLFW_KEY_7);
-            case "8" -> InputUtil.Type.KEYSYM.createFromCode(GLFW.GLFW_KEY_8);
-            case "9" -> InputUtil.Type.KEYSYM.createFromCode(GLFW.GLFW_KEY_9);
+            case "A" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_A);
+            case "B" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_B);
+            case "C" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_C);
+            case "D" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_D);
+            case "E" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_E);
+            case "F" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_F);
+            case "G" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_G);
+            case "H" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_H);
+            case "I" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_I);
+            case "J" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_J);
+            case "K" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_K);
+            case "L" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_L);
+            case "M" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_M);
+            case "N" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_N);
+            case "O" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_O);
+            case "P" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_P);
+            case "Q" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_Q);
+            case "R" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_R);
+            case "S" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_S);
+            case "T" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_T);
+            case "U" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_U);
+            case "V" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_V);
+            case "W" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_W);
+            case "X" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_X);
+            case "Y" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_Y);
+            case "Z" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_Z);
+            case "0" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_0);
+            case "1" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_1);
+            case "2" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_2);
+            case "3" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_3);
+            case "4" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_4);
+            case "5" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_5);
+            case "6" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_6);
+            case "7" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_7);
+            case "8" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_8);
+            case "9" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_9);
 
             // Symbols
-            case "[", "LEFT_BRACKET" -> InputUtil.Type.KEYSYM.createFromCode(GLFW.GLFW_KEY_LEFT_BRACKET);
-            case "]", "RIGHT_BRACKET" -> InputUtil.Type.KEYSYM.createFromCode(GLFW.GLFW_KEY_RIGHT_BRACKET);
-            case "\\", "BACKSLASH" -> InputUtil.Type.KEYSYM.createFromCode(GLFW.GLFW_KEY_BACKSLASH);
-            case ";", "SEMICOLON" -> InputUtil.Type.KEYSYM.createFromCode(GLFW.GLFW_KEY_SEMICOLON);
-            case "'", "APOSTROPHE" -> InputUtil.Type.KEYSYM.createFromCode(GLFW.GLFW_KEY_APOSTROPHE);
-            case ",", "COMMA" -> InputUtil.Type.KEYSYM.createFromCode(GLFW.GLFW_KEY_COMMA);
-            case ".", "PERIOD" -> InputUtil.Type.KEYSYM.createFromCode(GLFW.GLFW_KEY_PERIOD);
-            case "/", "SLASH" -> InputUtil.Type.KEYSYM.createFromCode(GLFW.GLFW_KEY_SLASH);
-            case "`", "GRAVE_ACCENT" -> InputUtil.Type.KEYSYM.createFromCode(GLFW.GLFW_KEY_GRAVE_ACCENT);
-            case "-", "MINUS" -> InputUtil.Type.KEYSYM.createFromCode(GLFW.GLFW_KEY_MINUS);
-            case "=", "EQUAL" -> InputUtil.Type.KEYSYM.createFromCode(GLFW.GLFW_KEY_EQUAL);
+            case "[", "LEFT_BRACKET" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_LEFT_BRACKET);
+            case "]", "RIGHT_BRACKET" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_RIGHT_BRACKET);
+            case "\\", "BACKSLASH" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_BACKSLASH);
+            case ";", "SEMICOLON" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_SEMICOLON);
+            case "'", "APOSTROPHE" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_APOSTROPHE);
+            case ",", "COMMA" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_COMMA);
+            case ".", "PERIOD" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_PERIOD);
+            case "/", "SLASH" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_SLASH);
+            case "`", "GRAVE_ACCENT" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_GRAVE_ACCENT);
+            case "-", "MINUS" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_MINUS);
+            case "=", "EQUAL" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_EQUAL);
 
             // Navigation & Special
-            case "SPACE" -> InputUtil.Type.KEYSYM.createFromCode(GLFW.GLFW_KEY_SPACE);
-            case "ENTER" -> InputUtil.Type.KEYSYM.createFromCode(GLFW.GLFW_KEY_ENTER);
-            case "TAB" -> InputUtil.Type.KEYSYM.createFromCode(GLFW.GLFW_KEY_TAB);
-            case "BACKSPACE" -> InputUtil.Type.KEYSYM.createFromCode(GLFW.GLFW_KEY_BACKSPACE);
-            case "INSERT" -> InputUtil.Type.KEYSYM.createFromCode(GLFW.GLFW_KEY_INSERT);
-            case "DELETE" -> InputUtil.Type.KEYSYM.createFromCode(GLFW.GLFW_KEY_DELETE);
-            case "RIGHT" -> InputUtil.Type.KEYSYM.createFromCode(GLFW.GLFW_KEY_RIGHT);
-            case "LEFT" -> InputUtil.Type.KEYSYM.createFromCode(GLFW.GLFW_KEY_LEFT);
-            case "DOWN" -> InputUtil.Type.KEYSYM.createFromCode(GLFW.GLFW_KEY_DOWN);
-            case "UP" -> InputUtil.Type.KEYSYM.createFromCode(GLFW.GLFW_KEY_UP);
-            case "PAGE_UP" -> InputUtil.Type.KEYSYM.createFromCode(GLFW.GLFW_KEY_PAGE_UP);
-            case "PAGE_DOWN" -> InputUtil.Type.KEYSYM.createFromCode(GLFW.GLFW_KEY_PAGE_DOWN);
-            case "HOME" -> InputUtil.Type.KEYSYM.createFromCode(GLFW.GLFW_KEY_HOME);
-            case "END" -> InputUtil.Type.KEYSYM.createFromCode(GLFW.GLFW_KEY_END);
-            case "ESCAPE" -> InputUtil.Type.KEYSYM.createFromCode(GLFW.GLFW_KEY_ESCAPE);
-            case "CAPS_LOCK" -> InputUtil.Type.KEYSYM.createFromCode(GLFW.GLFW_KEY_CAPS_LOCK);
-            case "SCROLL_LOCK" -> InputUtil.Type.KEYSYM.createFromCode(GLFW.GLFW_KEY_SCROLL_LOCK);
-            case "NUM_LOCK" -> InputUtil.Type.KEYSYM.createFromCode(GLFW.GLFW_KEY_NUM_LOCK);
-            case "PRINT_SCREEN" -> InputUtil.Type.KEYSYM.createFromCode(GLFW.GLFW_KEY_PRINT_SCREEN);
-            case "PAUSE" -> InputUtil.Type.KEYSYM.createFromCode(GLFW.GLFW_KEY_PAUSE);
-            case "SCROLL_LOCK_EXTRA" -> InputUtil.Type.KEYSYM.createFromCode(GLFW.GLFW_KEY_SCROLL_LOCK);
+            case "SPACE" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_SPACE);
+            case "ENTER" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_ENTER);
+            case "TAB" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_TAB);
+            case "BACKSPACE" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_BACKSPACE);
+            case "INSERT" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_INSERT);
+            case "DELETE" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_DELETE);
+            case "RIGHT" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_RIGHT);
+            case "LEFT" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_LEFT);
+            case "DOWN" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_DOWN);
+            case "UP" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_UP);
+            case "PAGE_UP" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_PAGE_UP);
+            case "PAGE_DOWN" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_PAGE_DOWN);
+            case "HOME" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_HOME);
+            case "END" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_END);
+            case "ESCAPE" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_ESCAPE);
+            case "CAPS_LOCK" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_CAPS_LOCK);
+            case "SCROLL_LOCK" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_SCROLL_LOCK);
+            case "NUM_LOCK" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_NUM_LOCK);
+            case "PRINT_SCREEN" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_PRINT_SCREEN);
+            case "PAUSE" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_PAUSE);
+            case "SCROLL_LOCK_EXTRA" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_SCROLL_LOCK);
 
             // Numpad
-            case "KP_0", "NUMPAD_0" -> InputUtil.Type.KEYSYM.createFromCode(GLFW.GLFW_KEY_KP_0);
-            case "KP_1", "NUMPAD_1" -> InputUtil.Type.KEYSYM.createFromCode(GLFW.GLFW_KEY_KP_1);
-            case "KP_2", "NUMPAD_2" -> InputUtil.Type.KEYSYM.createFromCode(GLFW.GLFW_KEY_KP_2);
-            case "KP_3", "NUMPAD_3" -> InputUtil.Type.KEYSYM.createFromCode(GLFW.GLFW_KEY_KP_3);
-            case "KP_4", "NUMPAD_4" -> InputUtil.Type.KEYSYM.createFromCode(GLFW.GLFW_KEY_KP_4);
-            case "KP_5", "NUMPAD_5" -> InputUtil.Type.KEYSYM.createFromCode(GLFW.GLFW_KEY_KP_5);
-            case "KP_6", "NUMPAD_6" -> InputUtil.Type.KEYSYM.createFromCode(GLFW.GLFW_KEY_KP_6);
-            case "KP_7", "NUMPAD_7" -> InputUtil.Type.KEYSYM.createFromCode(GLFW.GLFW_KEY_KP_7);
-            case "KP_8", "NUMPAD_8" -> InputUtil.Type.KEYSYM.createFromCode(GLFW.GLFW_KEY_KP_8);
-            case "KP_9", "NUMPAD_9" -> InputUtil.Type.KEYSYM.createFromCode(GLFW.GLFW_KEY_KP_9);
-            case "KP_ADD", "NUMPAD_ADD" -> InputUtil.Type.KEYSYM.createFromCode(GLFW.GLFW_KEY_KP_ADD);
-            case "KP_DECIMAL", "NUMPAD_DECIMAL" -> InputUtil.Type.KEYSYM.createFromCode(GLFW.GLFW_KEY_KP_DECIMAL);
-            case "KP_DIVIDE", "NUMPAD_DIVIDE" -> InputUtil.Type.KEYSYM.createFromCode(GLFW.GLFW_KEY_KP_DIVIDE);
-            case "KP_ENTER", "NUMPAD_ENTER" -> InputUtil.Type.KEYSYM.createFromCode(GLFW.GLFW_KEY_KP_ENTER);
-            case "KP_EQUAL", "NUMPAD_EQUAL" -> InputUtil.Type.KEYSYM.createFromCode(GLFW.GLFW_KEY_KP_EQUAL);
-            case "KP_MULTIPLY", "NUMPAD_MULTIPLY" -> InputUtil.Type.KEYSYM.createFromCode(GLFW.GLFW_KEY_KP_MULTIPLY);
-            case "KP_SUBTRACT", "NUMPAD_SUBTRACT" -> InputUtil.Type.KEYSYM.createFromCode(GLFW.GLFW_KEY_KP_SUBTRACT);
+            case "KP_0", "NUMPAD_0" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_KP_0);
+            case "KP_1", "NUMPAD_1" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_KP_1);
+            case "KP_2", "NUMPAD_2" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_KP_2);
+            case "KP_3", "NUMPAD_3" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_KP_3);
+            case "KP_4", "NUMPAD_4" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_KP_4);
+            case "KP_5", "NUMPAD_5" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_KP_5);
+            case "KP_6", "NUMPAD_6" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_KP_6);
+            case "KP_7", "NUMPAD_7" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_KP_7);
+            case "KP_8", "NUMPAD_8" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_KP_8);
+            case "KP_9", "NUMPAD_9" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_KP_9);
+            case "KP_ADD", "NUMPAD_ADD" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_KP_ADD);
+            case "KP_DECIMAL", "NUMPAD_DECIMAL" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_KP_DECIMAL);
+            case "KP_DIVIDE", "NUMPAD_DIVIDE" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_KP_DIVIDE);
+            case "KP_ENTER", "NUMPAD_ENTER" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_KP_ENTER);
+            case "KP_EQUAL", "NUMPAD_EQUAL" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_KP_EQUAL);
+            case "KP_MULTIPLY", "NUMPAD_MULTIPLY" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_KP_MULTIPLY);
+            case "KP_SUBTRACT", "NUMPAD_SUBTRACT" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_KP_SUBTRACT);
 
             // Modifiers
-            case "LEFT_SHIFT", "SHIFT" -> InputUtil.Type.KEYSYM.createFromCode(GLFW.GLFW_KEY_LEFT_SHIFT);
-            case "RIGHT_SHIFT" -> InputUtil.Type.KEYSYM.createFromCode(GLFW.GLFW_KEY_RIGHT_SHIFT);
-            case "LEFT_CONTROL", "LEFT_CTRL", "CONTROL", "CTRL" -> InputUtil.Type.KEYSYM.createFromCode(GLFW.GLFW_KEY_LEFT_CONTROL);
-            case "RIGHT_CONTROL" -> InputUtil.Type.KEYSYM.createFromCode(GLFW.GLFW_KEY_RIGHT_CONTROL);
-            case "LEFT_ALT", "ALT" -> InputUtil.Type.KEYSYM.createFromCode(GLFW.GLFW_KEY_LEFT_ALT);
-            case "RIGHT_ALT" -> InputUtil.Type.KEYSYM.createFromCode(GLFW.GLFW_KEY_RIGHT_ALT);
-            case "LEFT_SUPER", "SUPER", "WINDOWS", "CMD" -> InputUtil.Type.KEYSYM.createFromCode(GLFW.GLFW_KEY_LEFT_SUPER);
-            case "RIGHT_SUPER" -> InputUtil.Type.KEYSYM.createFromCode(GLFW.GLFW_KEY_RIGHT_SUPER);
+            case "LEFT_SHIFT", "SHIFT" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_LEFT_SHIFT);
+            case "RIGHT_SHIFT" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_RIGHT_SHIFT);
+            case "LEFT_CONTROL", "LEFT_CTRL", "CONTROL", "CTRL" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_LEFT_CONTROL);
+            case "RIGHT_CONTROL" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_RIGHT_CONTROL);
+            case "LEFT_ALT", "ALT" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_LEFT_ALT);
+            case "RIGHT_ALT" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_RIGHT_ALT);
+            case "LEFT_SUPER", "SUPER", "WINDOWS", "CMD" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_LEFT_SUPER);
+            case "RIGHT_SUPER" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_RIGHT_SUPER);
 
             default -> {
                 // Try literal key name (single char)
                 if (name.length() == 1) {
                     int code = name.charAt(0);
                     try {
-                        yield InputUtil.Type.KEYSYM.createFromCode(code);
+                        yield InputConstants.Type.KEYSYM.getOrCreate(code);
                     } catch (Exception ignored) {}
                 }
-                yield InputUtil.UNKNOWN_KEY;
+                yield InputConstants.UNKNOWN;
             }
         };
     }
