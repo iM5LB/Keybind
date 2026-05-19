@@ -8,8 +8,8 @@ import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.network.ServerInfo;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.multiplayer.ServerData;
 
 public class KeybindModClient implements ClientModInitializer {
 
@@ -21,7 +21,7 @@ public class KeybindModClient implements ClientModInitializer {
         keybindManager = new KeybindManager();
         keybindManager.registerAllKnownActions();
 
-        ClientPlayNetworking.registerGlobalReceiver(KeybindSyncPayload.ID,
+        ClientPlayNetworking.registerGlobalReceiver(KeybindSyncPayload.TYPE,
                 (payload, context) -> {
                     String serverAddress = getServerAddress();
                     context.client().execute(() -> {
@@ -45,10 +45,10 @@ public class KeybindModClient implements ClientModInitializer {
     }
 
     private String getServerAddress() {
-        MinecraftClient client = MinecraftClient.getInstance();
-        ServerInfo serverInfo = client.getCurrentServerEntry();
-        if (serverInfo != null) {
-            return serverInfo.address;
+        Minecraft client = Minecraft.getInstance();
+        ServerData serverData = client.getCurrentServer();
+        if (serverData != null) {
+            return serverData.ip;
         }
         // Singleplayer or unknown
         return "singleplayer";
