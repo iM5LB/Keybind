@@ -5,7 +5,8 @@ import com.keybind.mod.network.KeybindActionPayload;
 import com.keybind.mod.network.KeybindSyncPayload;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
-import net.minecraft.resources.Identifier;
+import net.minecraft.network.packet.CustomPayload;
+import net.minecraft.util.Identifier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -15,11 +16,11 @@ public class KeybindMod implements ModInitializer {
     public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
     public static ModConfig CONFIG;
 
-    public static final Identifier CHANNEL = Identifier.fromNamespaceAndPath(
+    public static final Identifier CHANNEL = Identifier.of(
             MOD_ID,
             KeybindConstants.ACTION_CHANNEL_PATH
     );
-    public static final Identifier SYNC_CHANNEL = Identifier.fromNamespaceAndPath(
+    public static final Identifier SYNC_CHANNEL = Identifier.of(
             MOD_ID,
             KeybindConstants.SYNC_CHANNEL_PATH
     );
@@ -28,14 +29,14 @@ public class KeybindMod implements ModInitializer {
     public void onInitialize() {
         CONFIG = ModConfig.load();
         
-        PayloadTypeRegistry.serverboundPlay().register(
-                KeybindActionPayload.TYPE,
-                KeybindActionPayload.STREAM_CODEC
+        PayloadTypeRegistry.playC2S().register(
+                KeybindActionPayload.ID,
+                KeybindActionPayload.CODEC
         );
 
-        PayloadTypeRegistry.clientboundPlay().register(
-                KeybindSyncPayload.TYPE,
-                KeybindSyncPayload.STREAM_CODEC
+        PayloadTypeRegistry.playS2C().register(
+                KeybindSyncPayload.ID,
+                KeybindSyncPayload.CODEC
         );
 
         LOGGER.info("Keybind initialized.");
