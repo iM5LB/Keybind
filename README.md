@@ -4,14 +4,14 @@ Bind keys to server-side commands. Press a key, the server runs a command.
 
 **[Client Mod (Fabric)](https://modrinth.com/plugin/keybind/versions?l=fabric)** • **[Server Plugin (Paper)](https://modrinth.com/plugin/keybind/versions?l=bukkit)**
 
-| Environment | Loader | MC Version |
-| :--- | :--- | :--- |
-| Client | Fabric | 1.21.x, 26.x |
-| Client | NeoForge | 1.21.x, 26.x |
-| Client | Forge | 1.21.x, 26.x |
-| Server | Paper | 1.18.2+ |
+| Environment | Loader | MC Version | Status |
+| :--- | :--- | :--- | :--- |
+| Client | Fabric | 1.21.x, 26.x | Released |
+| Server | Paper | 1.18.2+ | Released |
+| Client | NeoForge | 1.21.x, 26.x | Not released |
+| Client | Forge | 1.21.x, 26.x | Not released |
 
-> **Note**: Both the **Server Plugin** and the **Client Mod** must be installed for the mod to function. On servers without the plugin, no keybinds will be registered or available.
+> **Note**: Both the **Server Plugin** and the **Fabric Client Mod** must be installed for the mod to function. On servers without the plugin, no keybinds will be registered or available.
 
 ---
 
@@ -25,7 +25,7 @@ Bind keys to server-side commands. Press a key, the server runs a command.
 - 🔐 **Permission Support**: Each action supports an optional extra permission node on top of `keybind.use`.
 - 📡 **Plugin Messaging**: Uses `keybind:main` / `keybind:sync` plugin message channels. Falls back to `/kbind <action>` if the packet channel is unavailable.
 - 🧹 **Stale Action Cleanup**: Obsolete actions from previous sessions are automatically removed from the Controls menu and saved config.
-- 🌍 **Multi-Loader Support**: Separate client builds for Fabric, NeoForge, and Forge on the 1.21.x and 26.x lines.
+- 🌍 **Fabric Client**: Released for Minecraft 1.21.x and 26.x. NeoForge and Forge builds are not released yet.
 
 ---
 
@@ -45,9 +45,10 @@ Bind keys to server-side commands. Press a key, the server runs a command.
 2. Restart the server — `plugins/Keybind/config.yml` is generated automatically.
 3. Edit `config.yml` to define your actions, then run `/kbind reload`.
 
-### Client Side
-1. Install the matching client jar from [Modrinth](https://modrinth.com/plugin/keybind) into `.minecraft/mods/`.
-2. Launch the game and connect to a server running the plugin.
+### Client Side (Fabric only)
+1. Install the Fabric jar (`Fabric-Keybind-1.21-*.jar` or `Fabric-Keybind-26-*.jar`) from [Modrinth](https://modrinth.com/plugin/keybind/versions?l=fabric) into `.minecraft/mods/`.
+2. Requires **Fabric Loader** and **Fabric API**.
+3. Launch the game and connect to a server running the plugin.
 
 ---
 
