@@ -1,0 +1,81 @@
+plugins {
+    id 'java-library'
+    id 'net.minecraftforge.gradle' version '[7.0.29,8.0)'
+}
+
+version = project.mod_version
+group = project.maven_group
+base.archivesName = 'Forge-Keybind-26'
+
+java.toolchain.languageVersion = JavaLanguageVersion.of(25)
+
+minecraft {
+    mappings channel: project.mapping_channel, version: project.forge_26_minecraft_version
+
+    runs {
+        configureEach {
+            workingDir = layout.projectDirectory.dir('run')
+            systemProperty 'forge.logging.console.level', 'debug'
+        }
+        register('client')
+    }
+}
+
+repositories {
+    minecraft.mavenizer(it)
+    maven fg.forgeMaven
+    maven fg.minecraftLibsMaven
+    mavenCentral()
+}
+
+dependencies {
+    implementation minecraft.dependency("net.minecraftforge:forge:${project.forge_26_minecraft_version}-${project.forge_262_version}")
+    implementation project(':common')
+}
+
+sourceSets.main.java.srcDirs layout.buildDirectory.dir('generated/sources/compat/java')
+
+def prepareCompatSources = tasks.register('prepareCompatSources', Sync) {
+    from project(':fabric121').file('src/main/java')
+    exclude 'com/keybind/mod/KeybindMod.java'
+    exclude 'com/keybind/mod/client/KeybindModClient.java'
+    into layout.buildDirectory.dir('generated/sources/compat/java')
+    filter { line ->
+        line
+            .replace('import net.fabricmc.loader.api.FabricLoader;', 'import net.minecraftforge.fml.loading.FMLPaths;')
+            .replace('FabricLoader.getInstance().getConfigDir()', 'FMLPaths.CONFIGDIR.get()')
+            .replace('import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;', '')
+            .replace('ClientPlayNetworking.send(new KeybindActionPayload(action));', 'com.keybind.forge.KeybindForgeNetwork.sendAction(action);')
+            .replace('net.minecraft.resources.ResourceLocation', 'net.minecraft.resources.Identifier')
+            .replace('ResourceLocation', 'Identifier')
+            .replace('client.screen != null', 'false')
+            .replace('client.player.displayClientMessage(Component.literal(msg), false)', 'client.player.sendSystemMessage(Component.literal(msg))')
+    }
+}
+
+tasks.named('compileJava') { dependsOn prepareCompatSources }
+
+processResources {
+    inputs.property 'version', project.version
+    inputs.property 'forge_version', project.forge_262_version
+    inputs.property 'minecraft_version_range', project.minecraft_forge_26_version_range
+    filesMatching('META-INF/mods.toml') {
+        expand(
+            version: project.version,
+            forge_version: project.forge_262_version,
+            minecraft_version_range: project.minecraft_forge_26_version_range
+        )
+    }
+}
+
+tasks.named('jar', Jar) {
+    from project(':common').sourceSets.main.output
+    manifest {
+        attributes 'MixinConfigs': 'keybind-mod.mixins.json'
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.release = 25
+}

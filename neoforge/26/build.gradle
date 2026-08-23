@@ -1,0 +1,68 @@
+plugins {
+    id 'net.neoforged.moddev' version '2.0.141'
+    id 'java-library'
+}
+
+version = project.mod_version
+group = project.maven_group
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(25)
+    }
+}
+
+neoForge {
+    version = project.neoforge_262_version
+    mods {
+        keybind {
+            sourceSet sourceSets.main
+        }
+    }
+}
+
+dependencies {
+    implementation project(':common')
+}
+
+sourceSets.main.java.srcDirs layout.buildDirectory.dir('generated/sources/compat/java')
+
+def prepareCompatSources = tasks.register('prepareCompatSources', Sync) {
+    from project(':fabric121').file('src/main/java')
+    exclude 'com/keybind/mod/KeybindMod.java'
+    exclude 'com/keybind/mod/client/KeybindModClient.java'
+    into layout.buildDirectory.dir('generated/sources/compat/java')
+    filter { line ->
+        line
+            .replace('import net.fabricmc.loader.api.FabricLoader;', 'import net.neoforged.fml.loading.FMLPaths;')
+            .replace('FabricLoader.getInstance().getConfigDir()', 'FMLPaths.CONFIGDIR.get()')
+            .replace('net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking', 'net.neoforged.neoforge.client.network.ClientPacketDistributor')
+            .replace('ClientPlayNetworking.send(new KeybindActionPayload(action));', 'ClientPacketDistributor.sendToServer(new KeybindActionPayload(action));')
+            .replace('net.minecraft.resources.ResourceLocation', 'net.minecraft.resources.Identifier')
+            .replace('ResourceLocation', 'Identifier')
+            .replace('client.screen != null', 'false')
+            .replace('client.player.displayClientMessage(Component.literal(msg), false)', 'client.player.sendSystemMessage(Component.literal(msg))')
+            .replace('private static final String KEYBIND_CATEGORY = "key.categories.keybind.actions";', 'private static final KeyMapping.Category KEYBIND_CATEGORY = KeyMapping.Category.register(Identifier.fromNamespaceAndPath("keybind", "actions"));')
+            .replace('private KeyMapping createKeyMapping(String name, InputConstants.Key key, String category)', 'private KeyMapping createKeyMapping(String name, InputConstants.Key key, KeyMapping.Category category)')
+    }
+}
+
+tasks.named('compileJava') { dependsOn prepareCompatSources }
+
+processResources {
+    inputs.property 'version', project.version
+    inputs.property 'neo_version', project.neo_262_version
+    inputs.property 'minecraft_version_range', project.minecraft_262_version_range
+    filesMatching('META-INF/neoforge.mods.toml') {
+        expand(
+            version: project.version,
+            neo_version: project.neo_262_version,
+            minecraft_version_range: project.minecraft_262_version_range
+        )
+    }
+}
+
+jar {
+    from project(':common').sourceSets.main.output
+    archiveBaseName.set('Keybind-NeoForge-26.2')
+}

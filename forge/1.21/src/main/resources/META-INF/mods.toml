@@ -1,0 +1,13 @@
+modLoader="javafml"
+loaderVersion="[61,)"
+license="MIT"
+
+[[mixins]]
+config="keybind-mod.mixins.json"
+
+[[mods]]
+modId="keybind"
+version="${version}"
+displayName="Keybind"
+description="Bind keys to server actions. Works with the Keybind server plugin."
+displayTest="IGNORE_ALL_VERSION"

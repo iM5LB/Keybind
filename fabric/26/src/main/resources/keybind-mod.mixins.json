@@ -1,0 +1,9 @@
+{
+  "required": true,
+  "package": "com.keybind.mod.mixin",
+  "compatibilityLevel": "JAVA_25",
+  "client": ["LanguageMixin"],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

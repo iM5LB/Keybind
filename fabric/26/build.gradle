@@ -1,0 +1,72 @@
+plugins {
+    id 'net.fabricmc.fabric-loom' version "${loom_26_version}"
+    id 'java-library'
+}
+
+version = project.mod_version
+group = project.maven_group
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(25)
+    }
+}
+
+sourceSets {
+    main {
+        java.srcDirs layout.buildDirectory.dir('generated/sources/versioned/java')
+    }
+}
+
+def prepareVersionedSources = tasks.register('prepareVersionedSources', Sync) {
+    from rootProject.file('../1.21/src/main/java')
+    into layout.buildDirectory.dir('generated/sources/versioned/java')
+    filter { line ->
+        line
+            .replace('net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper', 'net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper')
+            .replace('KeyBindingHelper.registerKeyBinding', 'KeyMappingHelper.registerKeyMapping')
+            .replace('net.minecraft.resources.ResourceLocation', 'net.minecraft.resources.Identifier')
+            .replace('ResourceLocation', 'Identifier')
+            .replace('PayloadTypeRegistry.playC2S()', 'PayloadTypeRegistry.serverboundPlay()')
+            .replace('PayloadTypeRegistry.playS2C()', 'PayloadTypeRegistry.clientboundPlay()')
+            .replace('client.player.displayClientMessage(Component.literal(msg), false)', 'client.player.sendSystemMessage(Component.literal(msg))')
+            .replace('client.screen != null', 'false')
+    }
+}
+
+tasks.named('compileJava') {
+    dependsOn prepareVersionedSources
+}
+
+dependencies {
+    api project(':common')
+    minecraft "com.mojang:minecraft:${project.minecraft_26_version}"
+    implementation "net.fabricmc:fabric-loader:${project.loader_26_version}"
+    implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_26_version}"
+}
+
+processResources {
+    inputs.property 'version', project.version
+    filteringCharset 'UTF-8'
+
+    filesMatching('fabric.mod.json') {
+        expand version: project.version
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.release = 25
+}
+
+tasks.named('jar', Jar) {
+    dependsOn project(':common').tasks.named('classes')
+    from(project(':common').sourceSets.main.output)
+    archiveBaseName.set('Fabric-Keybind-26')
+}
+
+afterEvaluate {
+    tasks.findByName('remapJar')?.configure {
+        archiveBaseName.set('Fabric-Keybind-26')
+    }
+}

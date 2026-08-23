@@ -1,0 +1,22 @@
+# Keybind Plugin Configuration
+
+# Global cooldown between any keybind actions (in milliseconds)
+global-cooldown: 500
+
+# Define your custom actions here
+# Each action will be registered as a keybind on the client
+actions:
+  spawn:
+    command: "spawn"
+    display-name: "Spawn"
+    default-key: "LEFT_BRACKET"
+    permission: ""
+    cooldown: 1000
+    console: false
+  home:
+    command: "home"
+    display-name: "Home"
+    default-key: "RIGHT_BRACKET"
+    permission: ""
+    cooldown: 1000
+    console: false

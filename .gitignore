@@ -1,0 +1,42 @@
+# Gradle
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+
+# IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+.settings/
+.classpath
+.project
+.factorypath
+out/
+bin/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Fabric / Forge run dirs
+run/
+runs/
+*.log
+
+# Build outputs & local dumps
+*.jar
+!gradle/wrapper/gradle-wrapper.jar
+*.zip
+*.tar.gz
+
+# Netlify / deploy
+.netlify/
+
+# Scratch / inspect leftovers
+*-sources/
+*-inspect/
+jar-check/
+_inspect/
+_check/
