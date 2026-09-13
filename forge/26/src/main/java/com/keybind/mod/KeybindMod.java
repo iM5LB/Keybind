@@ -10,6 +10,7 @@ public final class KeybindMod {
     public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
     public static final Identifier CHANNEL = Identifier.fromNamespaceAndPath(MOD_ID, KeybindConstants.ACTION_CHANNEL_PATH);
     public static final Identifier SYNC_CHANNEL = Identifier.fromNamespaceAndPath(MOD_ID, KeybindConstants.SYNC_CHANNEL_PATH);
+    public static final Identifier CAPTURE_CHANNEL = Identifier.fromNamespaceAndPath(MOD_ID, KeybindConstants.CAPTURE_CHANNEL_PATH);
 
     private KeybindMod() { }
 }

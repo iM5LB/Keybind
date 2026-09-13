@@ -30,6 +30,10 @@ def prepareVersionedSources = tasks.register('prepareVersionedSources', Sync) {
             .replace('PayloadTypeRegistry.playC2S()', 'PayloadTypeRegistry.serverboundPlay()')
             .replace('PayloadTypeRegistry.playS2C()', 'PayloadTypeRegistry.clientboundPlay()')
             .replace('client.player.displayClientMessage(Component.literal(msg), false)', 'client.player.sendSystemMessage(Component.literal(msg))')
+            .replace('client.getWindow().getWindow()', 'client.getWindow().handle()')
+            .replace('client.player.displayClientMessage(', 'client.player.sendOverlayMessage(')
+            .replace('), true);', '));')
+            .replace('), false);', '));')
             .replace('client.screen != null', 'false')
     }
 }

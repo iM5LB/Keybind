@@ -8,6 +8,14 @@ java {
     }
 }
 
+sourceSets {
+    dialog {
+        java.srcDir 'src/dialog/java'
+        compileClasspath += sourceSets.main.output
+        compileClasspath += project(':common').sourceSets.main.output
+    }
+}
+
 repositories {
     mavenCentral()
     maven { url = 'https://repo.papermc.io/repository/maven-public/' }
@@ -16,6 +24,7 @@ repositories {
 dependencies {
     implementation project(':common')
     compileOnly 'io.papermc.paper:paper-api:1.18.2-R0.1-SNAPSHOT'
+    dialogCompileOnly 'io.papermc.paper:paper-api:1.21.8-R0.1-SNAPSHOT'
 }
 
 processResources {
@@ -27,8 +36,24 @@ processResources {
     }
 }
 
+tasks.named('compileJava', JavaCompile) {
+    options.encoding = 'UTF-8'
+    options.release = 17
+}
+
+tasks.named('compileDialogJava', JavaCompile) {
+    dependsOn tasks.named('compileJava')
+    javaCompiler = javaToolchains.compilerFor {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+    options.encoding = 'UTF-8'
+    options.release = 21
+}
+
 jar {
     dependsOn project(':common').tasks.named('classes')
+    dependsOn tasks.named('compileDialogJava')
     from(project(':common').sourceSets.main.output)
+    from(sourceSets.dialog.output)
     archiveBaseName.set('Keybind-Plugin')
 }

@@ -22,10 +22,18 @@ include 'neoforge262'
 include 'forge121'
 include 'forge262'
 
+if (providers.gradleProperty('includeForge12111').isPresent()) {
+    include 'forge12111'
+}
+
 project(':fabric121').projectDir = file('fabric/1.21')
 project(':neoforge121').projectDir = file('neoforge/1.21')
 project(':neoforge262').projectDir = file('neoforge/26')
 project(':forge121').projectDir = file('forge/1.21')
 project(':forge262').projectDir = file('forge/26')
+
+if (findProject(':forge12111') != null) {
+    project(':forge12111').projectDir = file('forge/1.21.11')
+}
 
 includeBuild 'fabric/26'

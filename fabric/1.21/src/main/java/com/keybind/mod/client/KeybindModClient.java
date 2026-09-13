@@ -1,7 +1,7 @@
 package com.keybind.mod.client;
 
 import com.keybind.mod.KeybindMod;
-import com.keybind.mod.network.KeybindActionPayload;
+import com.keybind.mod.network.KeybindCapturePayload;
 import com.keybind.mod.network.KeybindSyncPayload;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
@@ -52,6 +52,10 @@ public class KeybindModClient implements ClientModInitializer {
                         keybindManager.onServerSync(serverAddress, payload.version(), payload.actions());
                     });
                 }
+        );
+
+        ClientPlayNetworking.registerGlobalReceiver(KeybindCapturePayload.TYPE,
+                (payload, context) -> context.client().execute(keybindManager::beginKeyCapture)
         );
 
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {

@@ -9,7 +9,7 @@ Bind keys to server-side commands. Press a key, the server runs a command.
 | Client | Fabric | 1.21.x, 26.x | Released |
 | Server | Paper | 1.18.2+ | Released |
 | Client | NeoForge | 1.21.x, 26.x | Not released |
-| Client | Forge | 1.21.x, 26.x | Not released |
+| Client | Forge | 1.21, 1.21.11, 26.1 | Released |
 
 > **Note**: Both the **Server Plugin** and the **Fabric Client Mod** must be installed for the mod to function. On servers without the plugin, no keybinds will be registered or available.
 
@@ -20,12 +20,13 @@ Bind keys to server-side commands. Press a key, the server runs a command.
 - 🔗 **Server-Driven**: Actions are defined entirely on the server and synced to the client on join.
 - 📁 **Per-Server Storage**: Key assignments are saved per server IP in `.minecraft/config/keybind-servers/` and never overwritten on rejoin.
 - 🛠️ **Dynamic Registration**: New server actions appear in your **Settings → Controls** menu without restarting the game.
+- 💬 **In-game Manager**: On Paper 1.21.7+, `/kbind manage` opens a Minecraft dialog to add, edit, or delete keybinds without touching `config.yml`. Click **Press a key…**, then press the key (client mod required).
 - 🏷️ **Custom Display Names**: Server owners set friendly names (e.g., `"Teleport to Spawn"` instead of `spawn`).
 - ⏱️ **Dual Cooldowns**: Both a global cooldown (between any actions) and per-action cooldowns prevent spam.
 - 🔐 **Permission Support**: Each action supports an optional extra permission node on top of `keybind.use`.
 - 📡 **Plugin Messaging**: Uses `keybind:main` / `keybind:sync` plugin message channels. Falls back to `/kbind <action>` if the packet channel is unavailable.
 - 🧹 **Stale Action Cleanup**: Obsolete actions from previous sessions are automatically removed from the Controls menu and saved config.
-- 🌍 **Fabric Client**: Released for Minecraft 1.21.x and 26.x. NeoForge and Forge builds are not released yet.
+- 🌍 **Multi-loader Client**: Fabric and Forge builds are released. Forge targets Minecraft 1.21, 1.21.11, and 26.1.
 
 ---
 
@@ -41,14 +42,14 @@ Bind keys to server-side commands. Press a key, the server runs a command.
 ## 🛠️ Installation
 
 ### Server Side
-1. Place `Keybind-Plugin-1.0.2.jar` into your `plugins/` folder.
+1. Place `Keybind-Plugin-1.0.3.jar` into your `plugins/` folder.
 2. Restart the server — `plugins/Keybind/config.yml` is generated automatically.
 3. Edit `config.yml` to define your actions, then run `/kbind reload`.
 
-### Client Side (Fabric only)
-1. Install the Fabric jar (`Fabric-Keybind-1.21-*.jar` or `Fabric-Keybind-26-*.jar`) from [Modrinth](https://modrinth.com/plugin/keybind/versions?l=fabric) into `.minecraft/mods/`.
-2. Requires **Fabric Loader** and **Fabric API**.
-3. Launch the game and connect to a server running the plugin.
+### Client Side
+1. Install the client jar matching your Minecraft version and loader into `.minecraft/mods/`
+2. Install the required loader and API for the selected platform. Use Java 21 for Minecraft 1.21 and 1.21.11, and Java 25 for Minecraft 26.1.
+3. Do not install multiple Keybind client jars at the same time. Launch the game and connect to a server running the Keybind plugin.
 
 ---
 
@@ -118,10 +119,14 @@ actions:
 | :--- | :--- | :--- |
 | `/kbind <action>` | Manually trigger an action | `keybind.use` |
 | `/kbind list` | List all configured action names | *(any)* |
+| `/kbind manage` | Open the Minecraft dialog manager (Paper 1.21.7+) | `keybind.admin` |
+| `/kbind add <name> <command...>` | Create a keybind | `keybind.admin` |
+| `/kbind set <name> <field> <value>` | Edit `command`, `display`, `key`, `permission`, `cooldown`, or `console` | `keybind.admin` |
+| `/kbind remove <name>` | Delete a keybind | `keybind.admin` |
 | `/kbind reload` | Reload config and re-sync all online players | `keybind.admin` |
 
 | Permission | Description | Default |
 | :--- | :--- | :--- |
 | `keybind.use` | Required to trigger any action | `true` (everyone) |
-| `keybind.admin` | Access to `/kbind reload` | `op` |
+| `keybind.admin` | Access to `/kbind manage`, add/set/remove, and reload | `op` |
 | `keybind.bypass.cooldown` | Ignore all cooldowns | `op` |

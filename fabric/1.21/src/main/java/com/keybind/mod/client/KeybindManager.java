@@ -1,10 +1,13 @@
 package com.keybind.mod.client;
 
 import com.keybind.mod.KeybindMod;
+import com.keybind.mod.common.KeyNames;
 import com.keybind.mod.common.KeybindActionDefinition;
+import com.keybind.mod.common.KeybindConstants;
 import com.keybind.mod.common.state.KeybindClientState;
 import com.keybind.mod.common.sync.KeybindSyncPlan;
 import com.keybind.mod.network.KeybindActionPayload;
+import com.keybind.mod.network.KeybindCapturePayload;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.KeyMapping;
@@ -25,6 +28,10 @@ public class KeybindManager {
     private static final KeybindClientState CLIENT_STATE = new KeybindClientState();
 
     private final Map<String, KeyMapping> registeredMappings = new LinkedHashMap<>();
+    private boolean capturingKey;
+    private int captureDelayTicks;
+    private final Set<Integer> ignoredCaptureKeys = new HashSet<>();
+    private final Set<Integer> ignoredCaptureMouse = new HashSet<>();
     private static final RegistrationHandler DEFAULT_REGISTRATION_HANDLER = new RegistrationHandler() {
         @Override
         public void register(Minecraft client, KeyMapping mapping) {
@@ -711,12 +718,26 @@ public class KeybindManager {
     }
 
     public void onDisconnect() {
+        capturingKey = false;
         CLIENT_STATE.clearSync();
         KeybindMod.LOGGER.info("Disconnected — keybind sync cleared.");
     }
 
+    public void beginKeyCapture() {
+        capturingKey = true;
+        captureDelayTicks = 8;
+        ignoredCaptureKeys.clear();
+        ignoredCaptureMouse.clear();
+        KeybindMod.LOGGER.info("Started default-key capture.");
+    }
+
     public void tick(Minecraft client) {
-        if (!CLIENT_STATE.isSynced() || client.player == null || client.screen != null) return;
+        if (client.player == null) return;
+        if (capturingKey) {
+            tickKeyCapture(client);
+            return;
+        }
+        if (!CLIENT_STATE.isSynced() || client.screen != null) return;
 
         boolean changed = false;
         for (Map.Entry<String, KeyMapping> entry : registeredMappings.entrySet()) {
@@ -744,6 +765,83 @@ public class KeybindManager {
 
     public boolean isSynced() {
         return CLIENT_STATE.isSynced();
+    }
+
+    private void tickKeyCapture(Minecraft client) {
+        long window = client.getWindow().getWindow();
+        if (captureDelayTicks > 0) {
+            captureDelayTicks--;
+            snapshotHeldInputs(window);
+            client.player.displayClientMessage(Component.literal("§ePress a key to set the default bind  §7(ESC cancels)"), true);
+            return;
+        }
+
+        if (isKeyDown(window, KeyNames.escapeKey()) && !ignoredCaptureKeys.contains(KeyNames.escapeKey())) {
+            finishKeyCapture(client, KeybindConstants.CAPTURE_CANCEL);
+            return;
+        }
+
+        for (int button = 0; button <= 7; button++) {
+            if (GLFW.glfwGetMouseButton(window, button) == GLFW.GLFW_PRESS && !ignoredCaptureMouse.contains(button)) {
+                finishKeyCapture(client, KeyNames.fromMouseButton(button));
+                return;
+            }
+        }
+
+        for (int key : KeyNames.glfwKeys()) {
+            if (key == KeyNames.escapeKey()) {
+                continue;
+            }
+            if (isKeyDown(window, key) && !ignoredCaptureKeys.contains(key)) {
+                String name = KeyNames.fromGlfwKey(key);
+                if (!name.isEmpty()) {
+                    finishKeyCapture(client, name);
+                    return;
+                }
+            }
+        }
+
+        client.player.displayClientMessage(Component.literal("§ePress a key to set the default bind  §7(ESC cancels)"), true);
+    }
+
+    private void snapshotHeldInputs(long window) {
+        ignoredCaptureKeys.clear();
+        ignoredCaptureMouse.clear();
+        for (int key : KeyNames.glfwKeys()) {
+            if (isKeyDown(window, key)) {
+                ignoredCaptureKeys.add(key);
+            }
+        }
+        for (int button = 0; button <= 7; button++) {
+            if (GLFW.glfwGetMouseButton(window, button) == GLFW.GLFW_PRESS) {
+                ignoredCaptureMouse.add(button);
+            }
+        }
+    }
+
+    private static boolean isKeyDown(long window, int key) {
+        return GLFW.glfwGetKey(window, key) == GLFW.GLFW_PRESS;
+    }
+
+    private void finishKeyCapture(Minecraft client, String keyName) {
+        capturingKey = false;
+        ignoredCaptureKeys.clear();
+        ignoredCaptureMouse.clear();
+        if (keyName == null || keyName.isEmpty() || KeybindConstants.CAPTURE_CANCEL.equals(keyName)) {
+            client.player.displayClientMessage(Component.literal("§7Key capture cancelled."), false);
+            sendCapturedKey(KeybindConstants.CAPTURE_CANCEL);
+            return;
+        }
+        client.player.displayClientMessage(Component.literal("§aCaptured key: §f" + keyName), false);
+        sendCapturedKey(keyName);
+    }
+
+    private void sendCapturedKey(String keyName) {
+        try {
+            ClientPlayNetworking.send(new KeybindCapturePayload(keyName));
+        } catch (Exception e) {
+            KeybindMod.LOGGER.warn("Failed to send captured key {}", keyName, e);
+        }
     }
 
     private void sendAction(Minecraft client, String action) {

@@ -38,6 +38,7 @@ public final class KeybindNeoForgeClient {
 
         modBus.addListener(KeybindMod::registerPayloads);
         KeybindMod.setSyncReceiver(payload -> KEYBINDS.onServerSync(serverAddress(), payload.version(), payload.actions()));
+        KeybindMod.setCaptureReceiver(KEYBINDS::beginKeyCapture);
         NeoForge.EVENT_BUS.addListener((ClientTickEvent.Post event) -> KEYBINDS.tick(Minecraft.getInstance()));
         NeoForge.EVENT_BUS.addListener((ClientPlayerNetworkEvent.LoggingOut event) -> KEYBINDS.onDisconnect());
         KEYBINDS.registerAllKnownActions();

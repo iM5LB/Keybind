@@ -38,6 +38,7 @@ def prepareCompatSources = tasks.register('prepareCompatSources', Sync) {
             .replace('FabricLoader.getInstance().getConfigDir()', 'FMLPaths.CONFIGDIR.get()')
             .replace('import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;', '')
             .replace('ClientPlayNetworking.send(new KeybindActionPayload(action));', 'com.keybind.neoforge.network.KeybindNeoForgeNetwork.sendAction(action);')
+            .replace('ClientPlayNetworking.send(new KeybindCapturePayload(keyName));', 'com.keybind.neoforge.network.KeybindNeoForgeNetwork.sendCapture(keyName);')
             .replace('net.minecraft.resources.ResourceLocation', 'net.minecraft.resources.Identifier')
             .replace('ResourceLocation', 'Identifier')
             .replace('client.screen != null', 'false')

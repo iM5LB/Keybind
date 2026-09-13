@@ -4,7 +4,7 @@ import com.keybind.mod.common.KeybindSyncData;
 import com.keybind.mod.common.network.KeybindPacketCodec;
 import io.netty.buffer.Unpooled;
 import net.minecraft.network.FriendlyByteBuf;
-import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraftforge.event.network.CustomPayloadEvent;
 import net.minecraftforge.network.ChannelBuilder;
 import net.minecraftforge.network.EventNetworkChannel;
@@ -14,18 +14,35 @@ import java.io.IOException;
 import java.util.function.Consumer;
 
 public final class KeybindForgeNetwork {
-    private static final EventNetworkChannel ACTION = ChannelBuilder.named(Identifier.fromNamespaceAndPath("keybind", "main")).optional().eventNetworkChannel();
-    private static final EventNetworkChannel SYNC = ChannelBuilder.named(Identifier.fromNamespaceAndPath("keybind", "sync")).optional().eventNetworkChannel();
+    private static final EventNetworkChannel ACTION = ChannelBuilder.named(ResourceLocation.fromNamespaceAndPath("keybind", "main")).optional().eventNetworkChannel();
+    private static final EventNetworkChannel SYNC = ChannelBuilder.named(ResourceLocation.fromNamespaceAndPath("keybind", "sync")).optional().eventNetworkChannel();
+    private static final EventNetworkChannel CAPTURE = ChannelBuilder.named(ResourceLocation.fromNamespaceAndPath("keybind", "capture")).optional().eventNetworkChannel();
     private static Consumer<KeybindSyncData> syncReceiver = ignored -> { };
+    private static Runnable captureReceiver = () -> { };
 
     private KeybindForgeNetwork() { }
 
     public static void initialize() {
         SYNC.addListener(KeybindForgeNetwork::handleSync);
+        CAPTURE.addListener(KeybindForgeNetwork::handleCapture);
     }
 
     public static void setSyncReceiver(Consumer<KeybindSyncData> receiver) {
         syncReceiver = receiver;
+    }
+
+    public static void setCaptureReceiver(Runnable receiver) {
+        captureReceiver = receiver == null ? () -> { } : receiver;
+    }
+
+    public static void sendCapture(String key) {
+        try {
+            FriendlyByteBuf buffer = new FriendlyByteBuf(Unpooled.buffer());
+            buffer.writeBytes(KeybindPacketCodec.encodeAction(key));
+            CAPTURE.send(buffer, PacketDistributor.SERVER.noArg());
+        } catch (IOException exception) {
+            throw new IllegalArgumentException("Unable to encode Keybind capture", exception);
+        }
     }
 
     public static void sendAction(String action) {
@@ -50,5 +67,11 @@ public final class KeybindForgeNetwork {
         } catch (IOException exception) {
             throw new IllegalArgumentException("Invalid Keybind sync payload", exception);
         }
+    }
+
+    private static void handleCapture(CustomPayloadEvent event) {
+        if (!event.getSource().isClientSide()) return;
+        event.getSource().enqueueWork(captureReceiver);
+        event.getSource().setPacketHandled(true);
     }
 }

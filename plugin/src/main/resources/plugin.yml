@@ -8,8 +8,8 @@ authors:
 
 commands:
   kbind:
-    description: Execute a keybind action
-    usage: /<command> <action>
+    description: Execute a keybind action or manage keybinds
+    usage: /<command> <action|list|manage>
     permission: keybind.use
 
 permissions:
@@ -17,7 +17,7 @@ permissions:
     description: Allows using keybind actions
     default: true
   keybind.admin:
-    description: Allows reloading keybind config
+    description: Allows managing keybinds and reloading the config
     default: op
   keybind.bypass.cooldown:
     description: Bypass action cooldowns
