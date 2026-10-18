@@ -4,6 +4,7 @@ import com.keybind.mod.common.KeybindConstants;
 import com.keybind.mod.common.network.KeybindPacketCodec;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
+import net.kyori.adventure.text.format.TextDecoration;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -38,7 +39,11 @@ public final class KeyCaptureService implements PluginMessageListener, Listener 
         } catch (IOException e) {
             pending.remove(player.getUniqueId());
             player.sendMessage(Component.text("Could not start key capture.", NamedTextColor.RED));
-            KeybindDialogs.resumeAfterCapture(player, plugin, draft, draft.defaultKey);
+            if (KeybindDialogs.isSupported()) {
+                KeybindDialogs.resumeAfterCapture(player, plugin, draft, draft.defaultKey);
+            } else {
+                com.keybind.plugin.gui.KeybindInventoryMenu.open(player, plugin, draft.page);
+            }
             return;
         }
 
@@ -52,12 +57,25 @@ public final class KeyCaptureService implements PluginMessageListener, Listener 
             return;
         }
         if (keyName == null || keyName.isEmpty() || KeybindConstants.CAPTURE_CANCEL.equalsIgnoreCase(keyName)) {
-            player.sendMessage(Component.text("Key capture cancelled.", NamedTextColor.GRAY));
-            KeybindDialogs.resumeAfterCapture(player, plugin, draft, draft.defaultKey);
+            player.sendMessage(Component.text("[Keybind] ", NamedTextColor.AQUA, TextDecoration.BOLD)
+                    .append(Component.text("Key capture cancelled.", NamedTextColor.GRAY)));
+            com.keybind.plugin.gui.KeybindInventoryMenu.open(player, plugin, draft.page);
             return;
         }
-        player.sendMessage(Component.text("Captured key: " + keyName, NamedTextColor.GREEN));
-        KeybindDialogs.resumeAfterCapture(player, plugin, draft, keyName);
+        player.sendMessage(Component.text("[Keybind] ", NamedTextColor.AQUA, TextDecoration.BOLD)
+                .append(Component.text("Captured key: ", NamedTextColor.GREEN))
+                .append(Component.text(keyName, NamedTextColor.WHITE, TextDecoration.BOLD)));
+
+        ConfigManager.ActionConfig existing = plugin.getConfigManager().getAction(draft.name);
+        if (existing != null) {
+            ConfigManager.ActionConfig updated = new ConfigManager.ActionConfig(
+                    existing.getName(), existing.getDisplayName(), existing.getCommand(),
+                    keyName, existing.getPermission(), existing.getCooldown(), existing.isConsole()
+            );
+            plugin.getConfigManager().saveAction(updated);
+            plugin.getSyncSender().sendSyncToAll();
+        }
+        com.keybind.plugin.gui.KeybindInventoryMenu.open(player, plugin, draft.page);
     }
 
     @Override
@@ -89,7 +107,7 @@ public final class KeyCaptureService implements PluginMessageListener, Listener 
         if (player == null || !player.isOnline()) {
             return;
         }
-        player.sendMessage(Component.text("Key capture timed out. Type the key name, or update the Keybind client mod.", NamedTextColor.YELLOW));
-        KeybindDialogs.resumeAfterCapture(player, plugin, draft, draft.defaultKey);
+        player.sendMessage(Component.text("[Keybind] Key capture timed out.", NamedTextColor.YELLOW));
+        com.keybind.plugin.gui.KeybindInventoryMenu.open(player, plugin, draft.page);
     }
 }

@@ -3,6 +3,7 @@ package com.keybind.forge;
 import com.keybind.mod.common.KeybindSyncData;
 import com.keybind.mod.common.network.KeybindPacketCodec;
 import io.netty.buffer.Unpooled;
+import net.minecraft.client.Minecraft;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraftforge.event.network.CustomPayloadEvent;
@@ -36,22 +37,28 @@ public final class KeybindForgeNetwork {
     }
 
     public static void sendCapture(String key) {
+        Minecraft client = Minecraft.getInstance();
+        if (client.player != null && client.getConnection() != null) {
+            client.player.connection.sendCommand("kbind capture " + key);
+        }
         try {
             FriendlyByteBuf buffer = new FriendlyByteBuf(Unpooled.buffer());
             buffer.writeBytes(KeybindPacketCodec.encodeAction(key));
             CAPTURE.send(buffer, PacketDistributor.SERVER.noArg());
-        } catch (IOException exception) {
-            throw new IllegalArgumentException("Unable to encode Keybind capture", exception);
+        } catch (Throwable ignored) {
         }
     }
 
     public static void sendAction(String action) {
+        Minecraft client = Minecraft.getInstance();
+        if (client.player != null && client.getConnection() != null) {
+            client.player.connection.sendCommand("kbind " + action);
+        }
         try {
             FriendlyByteBuf buffer = new FriendlyByteBuf(Unpooled.buffer());
             buffer.writeBytes(KeybindPacketCodec.encodeAction(action));
             ACTION.send(buffer, PacketDistributor.SERVER.noArg());
-        } catch (IOException exception) {
-            throw new IllegalArgumentException("Unable to encode Keybind action", exception);
+        } catch (Throwable ignored) {
         }
     }
 

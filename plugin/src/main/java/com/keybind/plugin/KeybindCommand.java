@@ -50,10 +50,14 @@ public class KeybindCommand implements CommandExecutor, TabCompleter {
             return true;
         }
 
-        if (subcommand.equals("reload")
+        if (subcommand.equals("reload") || subcommand.equals("update")
                 || subcommand.equals("manage") || subcommand.equals("gui") || subcommand.equals("menu")
                 || subcommand.equals("add") || subcommand.equals("remove") || subcommand.equals("set")) {
             return handleAdmin(sender, label, subcommand, args);
+        }
+
+        if (subcommand.equals("capture")) {
+            return handleCapture(sender, args);
         }
 
         if (!(sender instanceof Player player)) {
@@ -74,8 +78,21 @@ public class KeybindCommand implements CommandExecutor, TabCompleter {
         switch (subcommand) {
             case "reload" -> {
                 configManager.reload();
+                plugin.setupMetrics();
                 plugin.getSyncSender().sendSyncToAll();
                 sender.sendMessage(Component.text("Keybind config reloaded and synced to all players!", NamedTextColor.GREEN));
+            }
+            case "update" -> {
+                if (plugin.getUpdateChecker().isUpdateAvailable()) {
+                    if (sender instanceof Player p) {
+                        plugin.getUpdateChecker().notifyAdmin(p);
+                    } else {
+                        sender.sendMessage(Component.text("A new update is available: v" + plugin.getUpdateChecker().getLatestVersion() + " -> " + plugin.getUpdateChecker().getDownloadUrl(), NamedTextColor.GREEN));
+                    }
+                } else {
+                    sender.sendMessage(Component.text("Checking for updates...", NamedTextColor.YELLOW));
+                    plugin.getUpdateChecker().checkForUpdates(false);
+                }
             }
             case "manage", "gui", "menu" -> openManager(sender);
             case "add" -> addAction(sender, label, args);
@@ -86,17 +103,27 @@ public class KeybindCommand implements CommandExecutor, TabCompleter {
         return true;
     }
 
+    private boolean handleCapture(CommandSender sender, String[] args) {
+        if (!(sender instanceof Player player)) {
+            sender.sendMessage(Component.text("Only players can use key capture.", NamedTextColor.RED));
+            return true;
+        }
+        if (args.length < 2) {
+            sender.sendMessage(Component.text("Usage: /kbind capture <key>", NamedTextColor.YELLOW));
+            return true;
+        }
+        String keyName = args[1].toUpperCase(Locale.ROOT);
+        plugin.getKeyCaptureService().complete(player, keyName);
+        return true;
+    }
+
     private void openManager(CommandSender sender) {
         if (!(sender instanceof Player player)) {
             sender.sendMessage(Component.text("Open the manager in-game, or use /kbind add|set|remove from the console.", NamedTextColor.YELLOW));
             sendAdminCommands(sender, "kbind");
             return;
         }
-        if (KeybindDialogs.openMenu(player, plugin)) {
-            return;
-        }
-        player.sendMessage(Component.text("Minecraft dialogs need Paper 1.21.7+. Use commands instead:", NamedTextColor.YELLOW));
-        sendAdminCommands(player, "kbind");
+        com.keybind.plugin.gui.KeybindInventoryMenu.open(player, plugin, 0);
     }
 
     private void addAction(CommandSender sender, String label, String[] args) {
@@ -216,6 +243,8 @@ public class KeybindCommand implements CommandExecutor, TabCompleter {
                 .append(Component.text(" — delete a keybind", NamedTextColor.GRAY)));
         sender.sendMessage(Component.text("/" + label + " reload", NamedTextColor.GOLD)
                 .append(Component.text(" — reload config.yml", NamedTextColor.GRAY)));
+        sender.sendMessage(Component.text("/" + label + " update", NamedTextColor.GOLD)
+                .append(Component.text(" — check for plugin updates", NamedTextColor.GRAY)));
     }
 
     private static String join(String[] args, int start) {
@@ -230,7 +259,7 @@ public class KeybindCommand implements CommandExecutor, TabCompleter {
             completions.add("list");
             completions.add("help");
             if (sender.hasPermission("keybind.admin")) {
-                completions.addAll(List.of("manage", "gui", "add", "remove", "set", "reload"));
+                completions.addAll(List.of("manage", "gui", "menu", "add", "remove", "set", "reload", "update"));
             }
             return prefix(completions, args[0]);
         }

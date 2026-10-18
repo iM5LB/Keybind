@@ -29,6 +29,8 @@ public final class KeybindNeoForgeClient {
             }
         });
 
+        KEYBINDS.registerAllKnownActions();
+
         modBus.addListener((RegisterKeyMappingsEvent event) -> {
             Object category = KeybindManager.getKeybindCategory();
             if (category instanceof KeyMapping.Category keybindCategory) {
@@ -41,7 +43,6 @@ public final class KeybindNeoForgeClient {
         KeybindMod.setCaptureReceiver(KEYBINDS::beginKeyCapture);
         NeoForge.EVENT_BUS.addListener((ClientTickEvent.Post event) -> KEYBINDS.tick(Minecraft.getInstance()));
         NeoForge.EVENT_BUS.addListener((ClientPlayerNetworkEvent.LoggingOut event) -> KEYBINDS.onDisconnect());
-        KEYBINDS.registerAllKnownActions();
     }
 
     private static String serverAddress() {

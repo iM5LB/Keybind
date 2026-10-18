@@ -64,9 +64,7 @@ public class KeybindModClient implements ClientModInitializer {
         });
 
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
-            if (client.player != null) {
-                keybindManager.tick(client);
-            }
+            keybindManager.tick(client);
         });
 
         KeybindMod.LOGGER.info("Keybind Mod client initialized.");

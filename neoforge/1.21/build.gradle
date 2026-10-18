@@ -39,11 +39,7 @@ def prepareCompatSources = tasks.register('prepareCompatSources', Sync) {
             .replace('import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;', '')
             .replace('ClientPlayNetworking.send(new KeybindActionPayload(action));', 'com.keybind.neoforge.network.KeybindNeoForgeNetwork.sendAction(action);')
             .replace('ClientPlayNetworking.send(new KeybindCapturePayload(keyName));', 'com.keybind.neoforge.network.KeybindNeoForgeNetwork.sendCapture(keyName);')
-            .replace('net.minecraft.resources.ResourceLocation', 'net.minecraft.resources.Identifier')
-            .replace('ResourceLocation', 'Identifier')
             .replace('client.screen != null', 'false')
-            .replace('private static final String KEYBIND_CATEGORY = "key.categories.keybind.actions";', 'private static final KeyMapping.Category KEYBIND_CATEGORY = KeyMapping.Category.register(Identifier.fromNamespaceAndPath("keybind", "actions"));')
-            .replace('private KeyMapping createKeyMapping(String name, InputConstants.Key key, String category)', 'private KeyMapping createKeyMapping(String name, InputConstants.Key key, KeyMapping.Category category)')
     }
 }
 
@@ -65,4 +61,8 @@ processResources {
 jar {
     from project(':common').sourceSets.main.output
     archiveBaseName.set('Keybind-NeoForge-1.21')
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
 }

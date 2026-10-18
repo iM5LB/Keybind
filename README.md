@@ -2,16 +2,19 @@
 
 Bind keys to server-side commands. Press a key, the server runs a command.
 
+[![bStats Servers](https://img.shields.io/bstats/servers/25110?style=flat&label=bStats%20Servers)](https://bstats.org/plugin/bukkit/Keybind/25110)
+[![bStats Players](https://img.shields.io/bstats/players/25110?style=flat&label=bStats%20Players)](https://bstats.org/plugin/bukkit/Keybind/25110)
+
 **[Client Mod (Fabric)](https://modrinth.com/plugin/keybind/versions?l=fabric)** • **[Server Plugin (Paper)](https://modrinth.com/plugin/keybind/versions?l=bukkit)**
 
 | Environment | Loader | MC Version | Status |
 | :--- | :--- | :--- | :--- |
 | Client | Fabric | 1.21.x, 26.x | Released |
 | Server | Paper | 1.18.2+ | Released |
-| Client | NeoForge | 1.21.x, 26.x | Not released |
-| Client | Forge | 1.21, 1.21.11, 26.1 | Released |
+| Client | NeoForge | 1.21.x, 26.x | Released |
+| Client | Forge | 1.21.x, 26.x | Released |
 
-> **Note**: Both the **Server Plugin** and the **Fabric Client Mod** must be installed for the mod to function. On servers without the plugin, no keybinds will be registered or available.
+> **Note**: Both the **Server Plugin** and the matching **Client Mod** must be installed for keybinds to function. On servers without the plugin, no keybinds will be registered or available.
 
 ---
 
@@ -21,12 +24,15 @@ Bind keys to server-side commands. Press a key, the server runs a command.
 - 📁 **Per-Server Storage**: Key assignments are saved per server IP in `.minecraft/config/keybind-servers/` and never overwritten on rejoin.
 - 🛠️ **Dynamic Registration**: New server actions appear in your **Settings → Controls** menu without restarting the game.
 - 💬 **In-game Manager**: On Paper 1.21.7+, `/kbind manage` opens a Minecraft dialog to add, edit, or delete keybinds without touching `config.yml`. Click **Press a key…**, then press the key (client mod required).
+- 🖥️ **Fallback Chest GUI**: Interactive 54-slot Chest GUI fallback for servers without Paper Dialog API.
+- 🔄 **Automatic Update Notifications**: Checks GitHub releases and automatically alerts administrators on join when updates are available.
+- 📊 **bStats Metrics**: Fully anonymous server telemetry to help track plugin usage and adoption.
 - 🏷️ **Custom Display Names**: Server owners set friendly names (e.g., `"Teleport to Spawn"` instead of `spawn`).
 - ⏱️ **Dual Cooldowns**: Both a global cooldown (between any actions) and per-action cooldowns prevent spam.
 - 🔐 **Permission Support**: Each action supports an optional extra permission node on top of `keybind.use`.
 - 📡 **Plugin Messaging**: Uses `keybind:main` / `keybind:sync` plugin message channels. Falls back to `/kbind <action>` if the packet channel is unavailable.
 - 🧹 **Stale Action Cleanup**: Obsolete actions from previous sessions are automatically removed from the Controls menu and saved config.
-- 🌍 **Multi-loader Client**: Fabric and Forge builds are released. Forge targets Minecraft 1.21, 1.21.11, and 26.1.
+- 🌍 **Multi-loader Client**: Fabric, Forge, and NeoForge builds available for Minecraft 1.21.x and 26.x.
 
 ---
 
@@ -42,13 +48,13 @@ Bind keys to server-side commands. Press a key, the server runs a command.
 ## 🛠️ Installation
 
 ### Server Side
-1. Place `Keybind-Plugin-1.0.3.jar` into your `plugins/` folder.
+1. Place `Keybind-Plugin-1.0.4.jar` into your `plugins/` folder.
 2. Restart the server — `plugins/Keybind/config.yml` is generated automatically.
 3. Edit `config.yml` to define your actions, then run `/kbind reload`.
 
 ### Client Side
 1. Install the client jar matching your Minecraft version and loader into `.minecraft/mods/`
-2. Install the required loader and API for the selected platform. Use Java 21 for Minecraft 1.21 and 1.21.11, and Java 25 for Minecraft 26.1.
+2. Install the required loader and API for the selected platform. Use Java 21 for Minecraft 1.21.x, and Java 25 for Minecraft 26.x.
 3. Do not install multiple Keybind client jars at the same time. Launch the game and connect to a server running the Keybind plugin.
 
 ---
@@ -57,6 +63,9 @@ Bind keys to server-side commands. Press a key, the server runs a command.
 
 ### `plugins/Keybind/config.yml`
 ```yaml
+# Update Checker (checks GitHub releases and notifies admins on join)
+update-checker: true
+
 # Global cooldown between any keybind actions (milliseconds)
 global-cooldown: 500
 
@@ -76,6 +85,9 @@ actions:
     permission: ""
     cooldown: 1000
     console: false
+
+# Enable anonymous metrics reporting (bStats)
+metrics: true
 ```
 
 **Notes:**

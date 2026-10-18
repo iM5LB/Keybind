@@ -10,14 +10,17 @@ import com.keybind.mod.network.KeybindActionPayload;
 import com.keybind.mod.network.KeybindCapturePayload;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import com.mojang.blaze3d.platform.InputConstants;
+import net.minecraft.ChatFormatting;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.Options;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.MutableComponent;
 import org.apache.commons.lang3.ArrayUtils;
 import org.lwjgl.glfw.GLFW;
 
 import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.util.*;
 
 public class KeybindManager {
@@ -97,19 +100,45 @@ public class KeybindManager {
         KeybindMod.LOGGER.info("Pre-registered {} known actions.", allActions.size());
     }
 
+    public Collection<KeyMapping> getRegisteredMappings() {
+        return Collections.unmodifiableCollection(registeredMappings.values());
+    }
+
+    public void registerAllRegisteredMappings(Minecraft client) {
+        if (client == null || client.options == null) return;
+        for (KeyMapping mapping : registeredMappings.values()) {
+            registrationHandler.register(client, mapping);
+        }
+    }
+
     private void registerAction(String actionName, String keyName) {
         InputConstants.Key key = resolveKey(keyName);
 
         if (registeredMappings.containsKey(actionName)) {
-            registeredMappings.get(actionName).setKey(key);
+            KeyMapping existing = registeredMappings.get(actionName);
+            existing.setKey(key);
+            updateDefaultKey(existing, key);
+            Minecraft client = Minecraft.getInstance();
+            registrationHandler.register(client, existing);
         } else {
             KeyMapping mapping = createKeyMapping("key.keybind." + actionName, key, KEYBIND_CATEGORY);
-
+            registeredMappings.put(actionName, mapping);
             Minecraft client = Minecraft.getInstance();
             registrationHandler.register(client, mapping);
-
-            registeredMappings.put(actionName, mapping);
         }
+    }
+
+    private static void updateDefaultKey(KeyMapping mapping, InputConstants.Key key) {
+        if (mapping == null || key == null) return;
+        try {
+            for (Field f : KeyMapping.class.getDeclaredFields()) {
+                if (f.getType() == InputConstants.Key.class && !f.getName().equals("key")) {
+                    f.setAccessible(true);
+                    f.set(mapping, key);
+                    break;
+                }
+            }
+        } catch (Throwable ignored) {}
     }
 
     private KeyMapping createKeyMapping(String name, InputConstants.Key key, Object category) {
@@ -249,7 +278,35 @@ public class KeybindManager {
      */
     @SuppressWarnings({"unchecked", "rawtypes"})
     private static void ensureCategoryListed(Object category) {
-        if (category == null || category instanceof String) {
+        if (category == null) {
+            return;
+        }
+        if (category instanceof String str) {
+            try {
+                for (Field field : KeyMapping.class.getDeclaredFields()) {
+                    if (java.lang.reflect.Modifier.isStatic(field.getModifiers())) {
+                        if (Map.class.isAssignableFrom(field.getType())) {
+                            field.setAccessible(true);
+                            Object map = field.get(null);
+                            if (map instanceof Map sortMap) {
+                                for (Object val : sortMap.values()) {
+                                    if (val instanceof Integer) {
+                                        sortMap.putIfAbsent(str, 999);
+                                        break;
+                                    }
+                                }
+                            }
+                        } else if (Set.class.isAssignableFrom(field.getType())) {
+                            field.setAccessible(true);
+                            Object set = field.get(null);
+                            if (set instanceof Set catSet) {
+                                catSet.add(str);
+                            }
+                        }
+                    }
+                }
+            } catch (Throwable ignored) {
+            }
             return;
         }
         try {
@@ -510,8 +567,50 @@ public class KeybindManager {
         return mapping;
     }
 
-    public static void injectKeyMapping(Minecraft client, KeyMapping mapping) {
+    public static void deduplicateKeyMappings(Minecraft client) {
         if (client == null || client.options == null) {
+            return;
+        }
+        try {
+            Field field = findKeyMappingsField();
+            if (field == null) {
+                return;
+            }
+            field.setAccessible(true);
+            KeyMapping[] original = (KeyMapping[]) field.get(client.options);
+            if (original == null || original.length <= 1) {
+                return;
+            }
+
+            List<KeyMapping> list = new ArrayList<>(original.length);
+            Set<String> seenNames = new HashSet<>();
+            int duplicates = 0;
+
+            for (KeyMapping m : original) {
+                if (m == null) {
+                    continue;
+                }
+                String name = readMappingName(m);
+                if (seenNames.add(name)) {
+                    list.add(m);
+                } else {
+                    duplicates++;
+                }
+            }
+
+            if (duplicates > 0) {
+                KeyMapping[] updated = list.toArray(new KeyMapping[0]);
+                field.set(client.options, updated);
+                KeyMapping.resetMapping();
+                KeybindMod.LOGGER.info("Deduplicated key mappings: removed {} duplicate entries (remaining: {})", duplicates, updated.length);
+            }
+        } catch (Throwable e) {
+            KeybindMod.LOGGER.error("Failed to deduplicate key mappings via reflection", e);
+        }
+    }
+
+    public static void injectKeyMapping(Minecraft client, KeyMapping mapping) {
+        if (client == null || client.options == null || mapping == null) {
             return;
         }
         try {
@@ -525,23 +624,65 @@ public class KeybindManager {
 
             field.setAccessible(true);
             KeyMapping[] original = (KeyMapping[]) field.get(client.options);
-            if (ArrayUtils.contains(original, mapping)) {
-                return;
+            if (original == null) {
+                original = new KeyMapping[0];
             }
 
-            int insertAt = findCategoryInsertIndex(original, mapping);
-            KeyMapping[] updated = ArrayUtils.add(original, insertAt, mapping);
-            field.set(client.options, updated);
-            KeyMapping.resetMapping();
-            KeybindMod.LOGGER.info("Dynamically registered action: {} (into {}[{}] @ {})",
-                    readMappingName(mapping), field.getName(), updated.length, insertAt);
+            String targetName = readMappingName(mapping);
+            List<KeyMapping> list = new ArrayList<>(original.length + 1);
+            Set<String> seenNames = new HashSet<>();
+            boolean replacedOrKept = false;
+            boolean arrayChanged = false;
+
+            for (KeyMapping existing : original) {
+                if (existing == null) {
+                    arrayChanged = true;
+                    continue;
+                }
+                String name = readMappingName(existing);
+                if (name.equals(targetName)) {
+                    if (!replacedOrKept) {
+                        list.add(mapping);
+                        seenNames.add(targetName);
+                        replacedOrKept = true;
+                        if (existing != mapping) {
+                            arrayChanged = true;
+                        }
+                    } else {
+                        // Found a duplicate of targetName — drop it!
+                        arrayChanged = true;
+                    }
+                } else {
+                    if (seenNames.add(name)) {
+                        list.add(existing);
+                    } else {
+                        // Found a duplicate of another key — drop it!
+                        arrayChanged = true;
+                    }
+                }
+            }
+
+            if (!replacedOrKept) {
+                KeyMapping[] currentArray = list.toArray(new KeyMapping[0]);
+                int insertAt = findCategoryInsertIndex(currentArray, mapping);
+                list.add(insertAt, mapping);
+                arrayChanged = true;
+            }
+
+            if (arrayChanged || list.size() != original.length) {
+                KeyMapping[] updated = list.toArray(new KeyMapping[0]);
+                field.set(client.options, updated);
+                KeyMapping.resetMapping();
+                KeybindMod.LOGGER.info("Dynamically registered action: {} (into {}[{}])",
+                        targetName, field.getName(), updated.length);
+            }
         } catch (Throwable e) {
             KeybindMod.LOGGER.error("Failed to dynamically register keybind via reflection", e);
         }
     }
 
     public static void removeKeyMapping(Minecraft client, KeyMapping mapping) {
-        if (client == null || client.options == null) {
+        if (client == null || client.options == null || mapping == null) {
             return;
         }
         try {
@@ -552,18 +693,46 @@ public class KeybindManager {
 
             field.setAccessible(true);
             KeyMapping[] original = (KeyMapping[]) field.get(client.options);
-            if (ArrayUtils.contains(original, mapping)) {
-                KeyMapping[] updated = ArrayUtils.removeElement(original, mapping);
+            if (original == null || original.length == 0) {
+                return;
+            }
+
+            String targetName = readMappingName(mapping);
+            List<KeyMapping> list = new ArrayList<>(original.length);
+            Set<String> seenNames = new HashSet<>();
+            boolean removed = false;
+
+            for (KeyMapping existing : original) {
+                if (existing == null) {
+                    continue;
+                }
+                String name = readMappingName(existing);
+                if (name.equals(targetName) || existing == mapping) {
+                    removed = true;
+                    continue;
+                }
+                if (seenNames.add(name)) {
+                    list.add(existing);
+                }
+            }
+
+            if (removed || list.size() != original.length) {
+                KeyMapping[] updated = list.toArray(new KeyMapping[0]);
                 field.set(client.options, updated);
                 KeyMapping.resetMapping();
-                KeybindMod.LOGGER.info("Dynamically removed action: {}", readMappingName(mapping));
+                KeybindMod.LOGGER.info("Dynamically removed action: {} (remaining: {})", targetName, updated.length);
             }
         } catch (Throwable e) {
             KeybindMod.LOGGER.error("Failed to dynamically remove keybind via reflection", e);
         }
     }
 
+    private static Field cachedKeyMappingsField = null;
+
     private static Field findKeyMappingsField() {
+        if (cachedKeyMappingsField != null) {
+            return cachedKeyMappingsField;
+        }
         Field[] fields = Options.class.getDeclaredFields();
         Minecraft client = Minecraft.getInstance();
         Object options = client != null ? client.options : null;
@@ -571,12 +740,17 @@ public class KeybindManager {
         // When options exist, pick the largest KeyMapping[] field. On 1.21.9+ Options has both
         // keyMappings and debugKeys; intermediary field names hide which is which, and debugKeys
         // is declared first — injecting there makes binds work for input but hide them in Controls.
+        // Additionally, Options.keyMappings is non-final, while keyHotbarSlots and debugKeys are final.
         if (options != null) {
             Field best = null;
             int bestLength = -1;
             for (Field field : fields) {
                 if (field.getType() != KeyMapping[].class) {
                     continue;
+                }
+                if (!java.lang.reflect.Modifier.isFinal(field.getModifiers())) {
+                    cachedKeyMappingsField = field;
+                    return field;
                 }
                 try {
                     field.setAccessible(true);
@@ -589,15 +763,23 @@ public class KeybindManager {
                 } catch (ReflectiveOperationException ignored) {
                 }
             }
-            return best;
+            if (best != null) {
+                cachedKeyMappingsField = best;
+                return best;
+            }
         }
 
         for (Field field : fields) {
             if (field.getType() != KeyMapping[].class) {
                 continue;
             }
+            if (!java.lang.reflect.Modifier.isFinal(field.getModifiers())) {
+                cachedKeyMappingsField = field;
+                return field;
+            }
             String name = field.getName();
             if ("keyMappings".equals(name) || "allKeys".equals(name)) {
+                cachedKeyMappingsField = field;
                 return field;
             }
         }
@@ -688,9 +870,7 @@ public class KeybindManager {
             if (syncPlan.newActions().contains(action.name())) {
                 KeybindMod.LOGGER.info("New action found: {} (default: {})", action.name(), keyName);
             }
-            if (keyName != null && !keyName.isEmpty()) {
-                registerAction(action.name(), keyName);
-            }
+            registerAction(action.name(), keyName != null ? keyName : "");
         }
 
         Minecraft client = Minecraft.getInstance();
@@ -709,9 +889,12 @@ public class KeybindManager {
         KeyMapping.resetMapping();
         
         if (client.player != null) {
-            String msg = "§a[Keybind] Synced " + actions.size() + " actions.";
-            if (!syncPlan.newActions().isEmpty()) msg += " §7(" + syncPlan.newActions().size() + " new)";
-            client.player.displayClientMessage(Component.literal(msg), false);
+            MutableComponent msg = Component.literal("[Keybind] Synced " + actions.size() + " actions.")
+                    .withStyle(ChatFormatting.GREEN);
+            if (!syncPlan.newActions().isEmpty()) {
+                msg.append(Component.literal(" (" + syncPlan.newActions().size() + " new)").withStyle(ChatFormatting.GRAY));
+            }
+            sendPlayerChatMessage(client, msg);
         }
         
         KeybindMod.LOGGER.info("Successfully synced {} actions for: {}", actions.size(), serverAddress);
@@ -725,13 +908,21 @@ public class KeybindManager {
 
     public void beginKeyCapture() {
         capturingKey = true;
-        captureDelayTicks = 8;
+        captureDelayTicks = 2;
         ignoredCaptureKeys.clear();
         ignoredCaptureMouse.clear();
         KeybindMod.LOGGER.info("Started default-key capture.");
     }
 
+    private boolean optionsInjected = false;
+
     public void tick(Minecraft client) {
+        if (client == null) return;
+        if (!optionsInjected && client.options != null) {
+            optionsInjected = true;
+            deduplicateKeyMappings(client);
+            registerAllRegisteredMappings(client);
+        }
         if (client.player == null) return;
         if (capturingKey) {
             tickKeyCapture(client);
@@ -767,12 +958,60 @@ public class KeybindManager {
         return CLIENT_STATE.isSynced();
     }
 
+    private static Method cachedWindowHandleMethod = null;
+    private static Field cachedWindowHandleField = null;
+
+    private static long getWindowHandle(Minecraft client) {
+        try {
+            long ctx = GLFW.glfwGetCurrentContext();
+            if (ctx != 0L) return ctx;
+        } catch (Throwable ignored) {}
+
+        if (client == null) return 0L;
+        try {
+            Object window = client.getWindow();
+            if (window != null) {
+                for (String name : new String[] {"handle", "getWindow", "getHandle", "findWindow"}) {
+                    try {
+                        Method m = window.getClass().getMethod(name);
+                        long val = (long) m.invoke(window);
+                        if (val != 0L) return val;
+                    } catch (Throwable ignored) {}
+                }
+                for (Method m : window.getClass().getDeclaredMethods()) {
+                    if (m.getParameterCount() == 0 && m.getReturnType() == long.class) {
+                        try {
+                            m.setAccessible(true);
+                            long val = (long) m.invoke(window);
+                            if (val != 0L) return val;
+                        } catch (Throwable ignored) {}
+                    }
+                }
+                for (Field f : window.getClass().getDeclaredFields()) {
+                    if (f.getType() == long.class) {
+                        try {
+                            f.setAccessible(true);
+                            long val = f.getLong(window);
+                            if (val != 0L) return val;
+                        } catch (Throwable ignored) {}
+                    }
+                }
+            }
+        } catch (Throwable ignored) {}
+        return 0L;
+    }
+
     private void tickKeyCapture(Minecraft client) {
-        long window = client.getWindow().getWindow();
+        long window = getWindowHandle(client);
+        if (window == 0L) {
+            return;
+        }
         if (captureDelayTicks > 0) {
             captureDelayTicks--;
             snapshotHeldInputs(window);
-            client.player.displayClientMessage(Component.literal("§ePress a key to set the default bind  §7(ESC cancels)"), true);
+            sendPlayerOverlayMessage(client, Component.literal("Press a key to set the default bind  ")
+                    .withStyle(ChatFormatting.YELLOW)
+                    .append(Component.literal("(ESC cancels)").withStyle(ChatFormatting.GRAY)));
             return;
         }
 
@@ -801,7 +1040,9 @@ public class KeybindManager {
             }
         }
 
-        client.player.displayClientMessage(Component.literal("§ePress a key to set the default bind  §7(ESC cancels)"), true);
+        sendPlayerOverlayMessage(client, Component.literal("Press a key to set the default bind  ")
+                .withStyle(ChatFormatting.YELLOW)
+                .append(Component.literal("(ESC cancels)").withStyle(ChatFormatting.GRAY)));
     }
 
     private void snapshotHeldInputs(long window) {
@@ -828,32 +1069,29 @@ public class KeybindManager {
         ignoredCaptureKeys.clear();
         ignoredCaptureMouse.clear();
         if (keyName == null || keyName.isEmpty() || KeybindConstants.CAPTURE_CANCEL.equals(keyName)) {
-            client.player.displayClientMessage(Component.literal("§7Key capture cancelled."), false);
             sendCapturedKey(KeybindConstants.CAPTURE_CANCEL);
             return;
         }
-        client.player.displayClientMessage(Component.literal("§aCaptured key: §f" + keyName), false);
         sendCapturedKey(keyName);
     }
 
+    private void sendPlayerOverlayMessage(Minecraft client, Component message) {
+        if (client == null || client.player == null) return;
+        client.player.displayClientMessage(message, true);
+    }
+
+    private void sendPlayerChatMessage(Minecraft client, Component message) {
+        if (client == null || client.player == null) return;
+        client.player.displayClientMessage(message, false);
+    }
+
     private void sendCapturedKey(String keyName) {
-        try {
-            ClientPlayNetworking.send(new KeybindCapturePayload(keyName));
-        } catch (Exception e) {
-            KeybindMod.LOGGER.warn("Failed to send captured key {}", keyName, e);
-        }
+        ClientPlayNetworking.send(new KeybindCapturePayload(keyName));
     }
 
     private void sendAction(Minecraft client, String action) {
-        if (client.player == null) return;
-
-        try {
-            ClientPlayNetworking.send(new KeybindActionPayload(action));
-            KeybindMod.LOGGER.debug("Sent action: {}", action);
-        } catch (Exception e) {
-            client.player.connection.sendCommand("kbind " + action);
-            KeybindMod.LOGGER.debug("Sent command: /kbind {}", action);
-        }
+        if (client == null || client.player == null) return;
+        ClientPlayNetworking.send(new KeybindActionPayload(action));
     }
 
     private InputConstants.Key resolveKey(String keyName) {

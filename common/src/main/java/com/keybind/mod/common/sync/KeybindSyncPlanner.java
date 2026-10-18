@@ -32,9 +32,15 @@ public final class KeybindSyncPlanner {
             String name = action.name();
             displayNames.put(name, action.displayName());
 
+            String current = plannedBindings.get(name);
+            String defKey = action.defaultKey() != null ? action.defaultKey() : "";
+
             if (!plannedBindings.containsKey(name)) {
-                plannedBindings.put(name, action.defaultKey());
+                plannedBindings.put(name, defKey);
                 newActions.add(name);
+                configChanged = true;
+            } else if ((current == null || current.isEmpty()) && !defKey.isEmpty()) {
+                plannedBindings.put(name, defKey);
                 configChanged = true;
             }
         }

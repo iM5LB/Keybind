@@ -1,5 +1,8 @@
 # Keybind Plugin Configuration
 
+# Update Checker
+update-checker: true
+
 # Global cooldown between any keybind actions (in milliseconds)
 global-cooldown: 500
 
@@ -20,3 +23,6 @@ actions:
     permission: ""
     cooldown: 1000
     console: false
+
+# Enable anonymous metrics reporting (bStats)
+metrics: true

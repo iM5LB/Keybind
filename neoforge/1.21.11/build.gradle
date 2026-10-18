@@ -1,0 +1,72 @@
+plugins {
+    id 'net.neoforged.moddev' version '2.0.141'
+    id 'java-library'
+}
+
+version = project.mod_version
+group = project.maven_group
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+neoForge {
+    version = project.neoforge_12111_version
+    mods {
+        keybind {
+            sourceSet sourceSets.main
+        }
+    }
+}
+
+dependencies {
+    implementation project(':common')
+}
+
+sourceSets.main.java.srcDirs layout.buildDirectory.dir('generated/sources/compat/java')
+
+def prepareCompatSources = tasks.register('prepareCompatSources', Sync) {
+    from project(':fabric121').file('src/main/java')
+    exclude 'com/keybind/mod/KeybindMod.java'
+    exclude 'com/keybind/mod/client/KeybindModClient.java'
+    exclude 'com/keybind/neoforge/KeybindNeoForge.java'
+    exclude 'com/keybind/neoforge/client/KeybindNeoForgeClient.java'
+    into layout.buildDirectory.dir('generated/sources/compat/java')
+    filter { line ->
+        line
+            .replace('import net.fabricmc.loader.api.FabricLoader;', 'import net.neoforged.fml.loading.FMLPaths;')
+            .replace('FabricLoader.getInstance().getConfigDir()', 'FMLPaths.CONFIGDIR.get()')
+            .replace('import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;', '')
+            .replace('ClientPlayNetworking.send(new KeybindActionPayload(action));', 'com.keybind.neoforge.network.KeybindNeoForgeNetwork.sendAction(action);')
+            .replace('ClientPlayNetworking.send(new KeybindCapturePayload(keyName));', 'com.keybind.neoforge.network.KeybindNeoForgeNetwork.sendCapture(keyName);')
+            .replace('net.minecraft.resources.ResourceLocation', 'net.minecraft.resources.Identifier')
+            .replace('ResourceLocation', 'Identifier')
+            .replace('client.screen != null', 'false')
+    }
+}
+
+tasks.named('compileJava') { dependsOn prepareCompatSources }
+
+processResources {
+    inputs.property 'version', project.version
+    inputs.property 'neo_version', project.neo_12111_version
+    inputs.property 'minecraft_version_range', project.minecraft_12111_version_range
+    filesMatching('META-INF/neoforge.mods.toml') {
+        expand(
+            version: project.version,
+            neo_version: project.neo_12111_version,
+            minecraft_version_range: project.minecraft_12111_version_range
+        )
+    }
+}
+
+jar {
+    from project(':common').sourceSets.main.output
+    archiveBaseName.set('Keybind-NeoForge-1.21.11')
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+}

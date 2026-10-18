@@ -50,11 +50,8 @@ def prepareCompatSources = tasks.register('prepareCompatSources', Sync) {
             .replace('net.minecraft.resources.ResourceLocation', 'net.minecraft.resources.Identifier')
             .replace('ResourceLocation', 'Identifier')
             .replace('client.screen != null', 'false')
-            .replace('client.player.displayClientMessage(Component.literal(msg), false)', 'client.player.sendSystemMessage(Component.literal(msg))')
-            .replace('client.getWindow().getWindow()', 'client.getWindow().handle()')
-            .replace('client.player.displayClientMessage(', 'client.player.sendOverlayMessage(')
-            .replace('), true);', '));')
-            .replace('), false);', '));')
+            .replace('client.player.displayClientMessage(message, true);', 'client.player.sendOverlayMessage(message);')
+            .replace('client.player.displayClientMessage(message, false);', 'client.player.sendSystemMessage(message);')
     }
 }
 

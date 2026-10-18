@@ -21,6 +21,8 @@ public class ConfigManager {
     private final KeybindPlugin plugin;
     private final Map<String, ActionConfig> actions = new HashMap<>();
     private long globalCooldown;
+    private boolean updateCheckerEnabled = true;
+    private boolean metricsEnabled = true;
     
     public ConfigManager(KeybindPlugin plugin) {
         this.plugin = plugin;
@@ -41,6 +43,12 @@ public class ConfigManager {
             FileConfiguration config = plugin.getConfig();
 
             globalCooldown = config.getLong("global-cooldown", 500);
+            if (config.isBoolean("update-checker")) {
+                updateCheckerEnabled = config.getBoolean("update-checker");
+            } else {
+                updateCheckerEnabled = config.getBoolean("update-checker.enabled", true);
+            }
+            metricsEnabled = config.getBoolean("metrics", true);
 
             actions.clear();
             ConfigurationSection actionsSection = config.getConfigurationSection("actions");
@@ -131,6 +139,19 @@ public class ConfigManager {
         return null;
     }
 
+    public void setUpdateCheckerEnabled(boolean enabled) {
+        this.updateCheckerEnabled = enabled;
+        plugin.getConfig().set("update-checker", enabled);
+        plugin.saveConfig();
+    }
+
+    public void setMetricsEnabled(boolean enabled) {
+        this.metricsEnabled = enabled;
+        plugin.getConfig().set("metrics", enabled);
+        plugin.saveConfig();
+        plugin.setupMetrics();
+    }
+
     public ActionConfig getAction(String name) {
         if (name == null) {
             return null;
@@ -148,6 +169,14 @@ public class ConfigManager {
 
     public long getGlobalCooldown() {
         return globalCooldown;
+    }
+
+    public boolean isUpdateCheckerEnabled() {
+        return updateCheckerEnabled;
+    }
+
+    public boolean isMetricsEnabled() {
+        return metricsEnabled;
     }
 
     public String getChannel() {

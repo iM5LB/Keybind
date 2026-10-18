@@ -27,7 +27,6 @@ public final class KeybindMod {
         PayloadRegistrar registrar = event.registrar("1").optional();
         registrar.playToServer(KeybindActionPayload.TYPE, KeybindActionPayload.STREAM_CODEC, (payload, context) -> { });
         registrar.playToClient(KeybindSyncPayload.TYPE, KeybindSyncPayload.STREAM_CODEC, (payload, context) -> syncReceiver.accept(payload));
-        registrar.playToServer(KeybindCapturePayload.TYPE, KeybindCapturePayload.STREAM_CODEC, (payload, context) -> { });
         registrar.playToClient(KeybindCapturePayload.TYPE, KeybindCapturePayload.STREAM_CODEC, (payload, context) -> captureReceiver.run());
     }
 

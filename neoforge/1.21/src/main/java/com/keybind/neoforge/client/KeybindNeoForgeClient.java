@@ -8,7 +8,6 @@ import net.minecraft.client.multiplayer.ServerData;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.neoforge.client.event.ClientPlayerNetworkEvent;
 import net.neoforged.neoforge.client.event.ClientTickEvent;
-import net.neoforged.neoforge.client.event.RegisterKeyMappingsEvent;
 import net.neoforged.neoforge.common.NeoForge;
 
 public final class KeybindNeoForgeClient {
@@ -29,19 +28,13 @@ public final class KeybindNeoForgeClient {
             }
         });
 
-        modBus.addListener((RegisterKeyMappingsEvent event) -> {
-            Object category = KeybindManager.getKeybindCategory();
-            if (category instanceof KeyMapping.Category keybindCategory) {
-                event.registerCategory(keybindCategory);
-            }
-        });
+        KEYBINDS.registerAllKnownActions();
 
         modBus.addListener(KeybindMod::registerPayloads);
         KeybindMod.setSyncReceiver(payload -> KEYBINDS.onServerSync(serverAddress(), payload.version(), payload.actions()));
         KeybindMod.setCaptureReceiver(KEYBINDS::beginKeyCapture);
         NeoForge.EVENT_BUS.addListener((ClientTickEvent.Post event) -> KEYBINDS.tick(Minecraft.getInstance()));
         NeoForge.EVENT_BUS.addListener((ClientPlayerNetworkEvent.LoggingOut event) -> KEYBINDS.onDisconnect());
-        KEYBINDS.registerAllKnownActions();
     }
 
     private static String serverAddress() {

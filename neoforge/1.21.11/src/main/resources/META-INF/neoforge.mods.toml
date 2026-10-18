@@ -1,0 +1,27 @@
+modLoader="javafml"
+loaderVersion="[1,)"
+license="MIT"
+
+[[mixins]]
+config="keybind-mod.mixins.json"
+
+[[mods]]
+modId="keybind"
+version="${version}"
+displayName="Keybind"
+description="Bind keys to server actions. Works with the Keybind server plugin."
+displayTest="IGNORE_ALL_VERSION"
+
+[[dependencies.keybind]]
+modId="neoforge"
+type="required"
+versionRange="[${neo_version},)"
+ordering="NONE"
+side="BOTH"
+
+[[dependencies.keybind]]
+modId="minecraft"
+type="required"
+versionRange="${minecraft_version_range}"
+ordering="NONE"
+side="BOTH"
