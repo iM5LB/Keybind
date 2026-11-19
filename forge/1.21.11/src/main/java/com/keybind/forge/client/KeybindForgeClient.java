@@ -28,7 +28,10 @@ public final class KeybindForgeClient {
         com.keybind.forge.KeybindForgeNetwork.setSyncReceiver(data -> KEYBINDS.onServerSync(serverAddress(), data.version(), data.actions()));
         com.keybind.forge.KeybindForgeNetwork.setCaptureReceiver(KEYBINDS::beginKeyCapture);
         KEYBINDS.registerAllKnownActions();
-        TickEvent.ClientTickEvent.Post.BUS.addListener(event -> KEYBINDS.tick(Minecraft.getInstance()));
+        TickEvent.ClientTickEvent.Post.BUS.addListener(event -> {
+            com.keybind.forge.KeybindForgeNetwork.maybeSendHello();
+            KEYBINDS.tick(Minecraft.getInstance());
+        });
         ClientPlayerNetworkEvent.LoggingOut.BUS.addListener(event -> KEYBINDS.onDisconnect());
     }
 

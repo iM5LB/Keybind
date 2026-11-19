@@ -39,7 +39,10 @@ public final class KeybindForgeClient {
 
     private static void registerForgeListeners() {
         try {
-            registerModernListener(TickEvent.ClientTickEvent.Post.class, event -> KEYBINDS.tick(Minecraft.getInstance()));
+            registerModernListener(TickEvent.ClientTickEvent.Post.class, event -> {
+                com.keybind.forge.KeybindForgeNetwork.maybeSendHello();
+                KEYBINDS.tick(Minecraft.getInstance());
+            });
             registerModernListener(ClientPlayerNetworkEvent.LoggingOut.class, event -> KEYBINDS.onDisconnect());
         } catch (NoSuchFieldException exception) {
             registerLegacyListeners();
@@ -70,6 +73,7 @@ public final class KeybindForgeClient {
     private static final class ForgeListeners {
         @SubscribeEvent
         public void onClientTick(TickEvent.ClientTickEvent.Post event) {
+            com.keybind.forge.KeybindForgeNetwork.maybeSendHello();
             KEYBINDS.tick(Minecraft.getInstance());
         }
 

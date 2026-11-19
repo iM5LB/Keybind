@@ -60,6 +60,13 @@ public class KeybindCommand implements CommandExecutor, TabCompleter {
             return handleCapture(sender, args);
         }
 
+        if (subcommand.equals("hello")) {
+            if (sender instanceof Player helloPlayer) {
+                plugin.getSyncSender().onHello(helloPlayer);
+            }
+            return true;
+        }
+
         if (!(sender instanceof Player player)) {
             sender.sendMessage(Component.text("Only players can execute keybind actions.", NamedTextColor.RED));
             return true;

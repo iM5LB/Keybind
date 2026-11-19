@@ -6,9 +6,7 @@ import com.keybind.mod.common.KeybindActionDefinition;
 import com.keybind.mod.common.KeybindConstants;
 import com.keybind.mod.common.state.KeybindClientState;
 import com.keybind.mod.common.sync.KeybindSyncPlan;
-import com.keybind.mod.network.KeybindActionPayload;
-import com.keybind.mod.network.KeybindCapturePayload;
-import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
+import com.keybind.mod.network.KeybindNet;
 import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.KeyMapping;
@@ -29,6 +27,8 @@ public class KeybindManager {
     /** String on &lt;1.21.9, KeyMapping.Category on 1.21.9+ / 26.x (resolved lazily). */
     private static final Object KEYBIND_CATEGORY = resolveKeybindCategory();
     private static final KeybindClientState CLIENT_STATE = new KeybindClientState();
+    /** KEYSYM on <=26.2, renamed KEYBOARD on 26.3+ — resolved once so one jar runs on both. */
+    private static final InputConstants.Type KEYBOARD_TYPE = resolveKeyboardType();
 
     private final Map<String, KeyMapping> registeredMappings = new LinkedHashMap<>();
     private boolean capturingKey;
@@ -289,11 +289,16 @@ public class KeybindManager {
                             field.setAccessible(true);
                             Object map = field.get(null);
                             if (map instanceof Map sortMap) {
+                                int lowest = Integer.MAX_VALUE;
+                                boolean hasInts = false;
                                 for (Object val : sortMap.values()) {
-                                    if (val instanceof Integer) {
-                                        sortMap.putIfAbsent(str, 999);
-                                        break;
+                                    if (val instanceof Integer i) {
+                                        hasInts = true;
+                                        if (i < lowest) lowest = i;
                                     }
+                                }
+                                if (hasInts && lowest > Integer.MIN_VALUE) {
+                                    sortMap.put(str, lowest - 1);
                                 }
                             }
                         } else if (Set.class.isAssignableFrom(field.getType())) {
@@ -321,13 +326,22 @@ public class KeybindManager {
                 if (!(value instanceof java.util.List<?> list)) {
                     continue;
                 }
-                for (Object existing : list) {
+                int existingIndex = -1;
+                for (int i = 0; i < list.size(); i++) {
+                    Object existing = list.get(i);
                     if (category.equals(existing) || categoriesEqual(category, existing)) {
-                        return;
+                        existingIndex = i;
+                        break;
                     }
                 }
-                ((java.util.List) list).add(category);
-                KeybindMod.LOGGER.info("Registered Keybind category into {}", field.getName());
+                if (existingIndex == 0) {
+                    return;
+                }
+                if (existingIndex > 0) {
+                    ((java.util.List) list).remove(existingIndex);
+                }
+                ((java.util.List) list).add(0, category);
+                KeybindMod.LOGGER.info("Registered Keybind category into {} (top)", field.getName());
                 return;
             }
         } catch (ReflectiveOperationException | RuntimeException ex) {
@@ -862,6 +876,7 @@ public class KeybindManager {
     public void onServerSync(String serverAddress, String serverVersion, List<KeybindActionDefinition> actions) {
         KeybindMod.LOGGER.info("Starting sync for: {} (Version: {}, Actions: {})", serverAddress, serverVersion, actions.size());
 
+        boolean wasSynced = CLIENT_STATE.isSynced();
         Map<String, String> savedBindings = ServerKeybindStorage.load(serverAddress);
         KeybindSyncPlan syncPlan = CLIENT_STATE.startSync(serverAddress, savedBindings, registeredMappings.keySet(), actions);
 
@@ -888,7 +903,10 @@ public class KeybindManager {
         
         KeyMapping.resetMapping();
         
-        if (client.player != null) {
+        boolean nothingChanged = wasSynced
+                && syncPlan.newActions().isEmpty()
+                && syncPlan.removedActions().isEmpty();
+        if (client.player != null && !nothingChanged) {
             MutableComponent msg = Component.literal("[Keybind] Synced " + actions.size() + " actions.")
                     .withStyle(ChatFormatting.GREEN);
             if (!syncPlan.newActions().isEmpty()) {
@@ -1086,12 +1104,27 @@ public class KeybindManager {
     }
 
     private void sendCapturedKey(String keyName) {
-        ClientPlayNetworking.send(new KeybindCapturePayload(keyName));
+        KeybindNet.sendCapture(keyName);
     }
 
     private void sendAction(Minecraft client, String action) {
         if (client == null || client.player == null) return;
-        ClientPlayNetworking.send(new KeybindActionPayload(action));
+        KeybindNet.sendAction(action);
+    }
+
+    private static InputConstants.Type resolveKeyboardType() {
+        for (String name : new String[]{"KEYSYM", "KEYBOARD"}) {
+            try {
+                return InputConstants.Type.valueOf(name);
+            } catch (IllegalArgumentException ignored) {
+            }
+        }
+        for (InputConstants.Type type : InputConstants.Type.values()) {
+            if (type != InputConstants.Type.MOUSE) {
+                return type;
+            }
+        }
+        return InputConstants.Type.MOUSE;
     }
 
     private InputConstants.Key resolveKey(String keyName) {
@@ -1117,141 +1150,141 @@ public class KeybindManager {
             case "MOUSE_8" -> InputConstants.Type.MOUSE.getOrCreate(7);
 
             // Function Keys
-            case "F1" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_F1);
-            case "F2" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_F2);
-            case "F3" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_F3);
-            case "F4" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_F4);
-            case "F5" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_F5);
-            case "F6" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_F6);
-            case "F7" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_F7);
-            case "F8" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_F8);
-            case "F9" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_F9);
-            case "F10" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_F10);
-            case "F11" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_F11);
-            case "F12" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_F12);
-            case "F13" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_F13);
-            case "F14" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_F14);
-            case "F15" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_F15);
-            case "F16" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_F16);
-            case "F17" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_F17);
-            case "F18" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_F18);
-            case "F19" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_F19);
-            case "F20" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_F20);
-            case "F21" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_F21);
-            case "F22" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_F22);
-            case "F23" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_F23);
-            case "F24" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_F24);
-            case "F25" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_F25);
+            case "F1" -> KEYBOARD_TYPE.getOrCreate(GLFW.GLFW_KEY_F1);
+            case "F2" -> KEYBOARD_TYPE.getOrCreate(GLFW.GLFW_KEY_F2);
+            case "F3" -> KEYBOARD_TYPE.getOrCreate(GLFW.GLFW_KEY_F3);
+            case "F4" -> KEYBOARD_TYPE.getOrCreate(GLFW.GLFW_KEY_F4);
+            case "F5" -> KEYBOARD_TYPE.getOrCreate(GLFW.GLFW_KEY_F5);
+            case "F6" -> KEYBOARD_TYPE.getOrCreate(GLFW.GLFW_KEY_F6);
+            case "F7" -> KEYBOARD_TYPE.getOrCreate(GLFW.GLFW_KEY_F7);
+            case "F8" -> KEYBOARD_TYPE.getOrCreate(GLFW.GLFW_KEY_F8);
+            case "F9" -> KEYBOARD_TYPE.getOrCreate(GLFW.GLFW_KEY_F9);
+            case "F10" -> KEYBOARD_TYPE.getOrCreate(GLFW.GLFW_KEY_F10);
+            case "F11" -> KEYBOARD_TYPE.getOrCreate(GLFW.GLFW_KEY_F11);
+            case "F12" -> KEYBOARD_TYPE.getOrCreate(GLFW.GLFW_KEY_F12);
+            case "F13" -> KEYBOARD_TYPE.getOrCreate(GLFW.GLFW_KEY_F13);
+            case "F14" -> KEYBOARD_TYPE.getOrCreate(GLFW.GLFW_KEY_F14);
+            case "F15" -> KEYBOARD_TYPE.getOrCreate(GLFW.GLFW_KEY_F15);
+            case "F16" -> KEYBOARD_TYPE.getOrCreate(GLFW.GLFW_KEY_F16);
+            case "F17" -> KEYBOARD_TYPE.getOrCreate(GLFW.GLFW_KEY_F17);
+            case "F18" -> KEYBOARD_TYPE.getOrCreate(GLFW.GLFW_KEY_F18);
+            case "F19" -> KEYBOARD_TYPE.getOrCreate(GLFW.GLFW_KEY_F19);
+            case "F20" -> KEYBOARD_TYPE.getOrCreate(GLFW.GLFW_KEY_F20);
+            case "F21" -> KEYBOARD_TYPE.getOrCreate(GLFW.GLFW_KEY_F21);
+            case "F22" -> KEYBOARD_TYPE.getOrCreate(GLFW.GLFW_KEY_F22);
+            case "F23" -> KEYBOARD_TYPE.getOrCreate(GLFW.GLFW_KEY_F23);
+            case "F24" -> KEYBOARD_TYPE.getOrCreate(GLFW.GLFW_KEY_F24);
+            case "F25" -> KEYBOARD_TYPE.getOrCreate(GLFW.GLFW_KEY_F25);
 
             // Alphanumeric
-            case "A" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_A);
-            case "B" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_B);
-            case "C" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_C);
-            case "D" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_D);
-            case "E" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_E);
-            case "F" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_F);
-            case "G" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_G);
-            case "H" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_H);
-            case "I" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_I);
-            case "J" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_J);
-            case "K" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_K);
-            case "L" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_L);
-            case "M" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_M);
-            case "N" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_N);
-            case "O" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_O);
-            case "P" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_P);
-            case "Q" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_Q);
-            case "R" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_R);
-            case "S" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_S);
-            case "T" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_T);
-            case "U" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_U);
-            case "V" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_V);
-            case "W" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_W);
-            case "X" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_X);
-            case "Y" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_Y);
-            case "Z" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_Z);
-            case "0" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_0);
-            case "1" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_1);
-            case "2" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_2);
-            case "3" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_3);
-            case "4" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_4);
-            case "5" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_5);
-            case "6" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_6);
-            case "7" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_7);
-            case "8" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_8);
-            case "9" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_9);
+            case "A" -> KEYBOARD_TYPE.getOrCreate(GLFW.GLFW_KEY_A);
+            case "B" -> KEYBOARD_TYPE.getOrCreate(GLFW.GLFW_KEY_B);
+            case "C" -> KEYBOARD_TYPE.getOrCreate(GLFW.GLFW_KEY_C);
+            case "D" -> KEYBOARD_TYPE.getOrCreate(GLFW.GLFW_KEY_D);
+            case "E" -> KEYBOARD_TYPE.getOrCreate(GLFW.GLFW_KEY_E);
+            case "F" -> KEYBOARD_TYPE.getOrCreate(GLFW.GLFW_KEY_F);
+            case "G" -> KEYBOARD_TYPE.getOrCreate(GLFW.GLFW_KEY_G);
+            case "H" -> KEYBOARD_TYPE.getOrCreate(GLFW.GLFW_KEY_H);
+            case "I" -> KEYBOARD_TYPE.getOrCreate(GLFW.GLFW_KEY_I);
+            case "J" -> KEYBOARD_TYPE.getOrCreate(GLFW.GLFW_KEY_J);
+            case "K" -> KEYBOARD_TYPE.getOrCreate(GLFW.GLFW_KEY_K);
+            case "L" -> KEYBOARD_TYPE.getOrCreate(GLFW.GLFW_KEY_L);
+            case "M" -> KEYBOARD_TYPE.getOrCreate(GLFW.GLFW_KEY_M);
+            case "N" -> KEYBOARD_TYPE.getOrCreate(GLFW.GLFW_KEY_N);
+            case "O" -> KEYBOARD_TYPE.getOrCreate(GLFW.GLFW_KEY_O);
+            case "P" -> KEYBOARD_TYPE.getOrCreate(GLFW.GLFW_KEY_P);
+            case "Q" -> KEYBOARD_TYPE.getOrCreate(GLFW.GLFW_KEY_Q);
+            case "R" -> KEYBOARD_TYPE.getOrCreate(GLFW.GLFW_KEY_R);
+            case "S" -> KEYBOARD_TYPE.getOrCreate(GLFW.GLFW_KEY_S);
+            case "T" -> KEYBOARD_TYPE.getOrCreate(GLFW.GLFW_KEY_T);
+            case "U" -> KEYBOARD_TYPE.getOrCreate(GLFW.GLFW_KEY_U);
+            case "V" -> KEYBOARD_TYPE.getOrCreate(GLFW.GLFW_KEY_V);
+            case "W" -> KEYBOARD_TYPE.getOrCreate(GLFW.GLFW_KEY_W);
+            case "X" -> KEYBOARD_TYPE.getOrCreate(GLFW.GLFW_KEY_X);
+            case "Y" -> KEYBOARD_TYPE.getOrCreate(GLFW.GLFW_KEY_Y);
+            case "Z" -> KEYBOARD_TYPE.getOrCreate(GLFW.GLFW_KEY_Z);
+            case "0" -> KEYBOARD_TYPE.getOrCreate(GLFW.GLFW_KEY_0);
+            case "1" -> KEYBOARD_TYPE.getOrCreate(GLFW.GLFW_KEY_1);
+            case "2" -> KEYBOARD_TYPE.getOrCreate(GLFW.GLFW_KEY_2);
+            case "3" -> KEYBOARD_TYPE.getOrCreate(GLFW.GLFW_KEY_3);
+            case "4" -> KEYBOARD_TYPE.getOrCreate(GLFW.GLFW_KEY_4);
+            case "5" -> KEYBOARD_TYPE.getOrCreate(GLFW.GLFW_KEY_5);
+            case "6" -> KEYBOARD_TYPE.getOrCreate(GLFW.GLFW_KEY_6);
+            case "7" -> KEYBOARD_TYPE.getOrCreate(GLFW.GLFW_KEY_7);
+            case "8" -> KEYBOARD_TYPE.getOrCreate(GLFW.GLFW_KEY_8);
+            case "9" -> KEYBOARD_TYPE.getOrCreate(GLFW.GLFW_KEY_9);
 
             // Symbols
-            case "[", "LEFT_BRACKET" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_LEFT_BRACKET);
-            case "]", "RIGHT_BRACKET" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_RIGHT_BRACKET);
-            case "\\", "BACKSLASH" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_BACKSLASH);
-            case ";", "SEMICOLON" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_SEMICOLON);
-            case "'", "APOSTROPHE" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_APOSTROPHE);
-            case ",", "COMMA" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_COMMA);
-            case ".", "PERIOD" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_PERIOD);
-            case "/", "SLASH" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_SLASH);
-            case "`", "GRAVE_ACCENT" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_GRAVE_ACCENT);
-            case "-", "MINUS" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_MINUS);
-            case "=", "EQUAL" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_EQUAL);
+            case "[", "LEFT_BRACKET" -> KEYBOARD_TYPE.getOrCreate(GLFW.GLFW_KEY_LEFT_BRACKET);
+            case "]", "RIGHT_BRACKET" -> KEYBOARD_TYPE.getOrCreate(GLFW.GLFW_KEY_RIGHT_BRACKET);
+            case "\\", "BACKSLASH" -> KEYBOARD_TYPE.getOrCreate(GLFW.GLFW_KEY_BACKSLASH);
+            case ";", "SEMICOLON" -> KEYBOARD_TYPE.getOrCreate(GLFW.GLFW_KEY_SEMICOLON);
+            case "'", "APOSTROPHE" -> KEYBOARD_TYPE.getOrCreate(GLFW.GLFW_KEY_APOSTROPHE);
+            case ",", "COMMA" -> KEYBOARD_TYPE.getOrCreate(GLFW.GLFW_KEY_COMMA);
+            case ".", "PERIOD" -> KEYBOARD_TYPE.getOrCreate(GLFW.GLFW_KEY_PERIOD);
+            case "/", "SLASH" -> KEYBOARD_TYPE.getOrCreate(GLFW.GLFW_KEY_SLASH);
+            case "`", "GRAVE_ACCENT" -> KEYBOARD_TYPE.getOrCreate(GLFW.GLFW_KEY_GRAVE_ACCENT);
+            case "-", "MINUS" -> KEYBOARD_TYPE.getOrCreate(GLFW.GLFW_KEY_MINUS);
+            case "=", "EQUAL" -> KEYBOARD_TYPE.getOrCreate(GLFW.GLFW_KEY_EQUAL);
 
             // Navigation & Special
-            case "SPACE" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_SPACE);
-            case "ENTER" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_ENTER);
-            case "TAB" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_TAB);
-            case "BACKSPACE" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_BACKSPACE);
-            case "INSERT" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_INSERT);
-            case "DELETE" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_DELETE);
-            case "RIGHT" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_RIGHT);
-            case "LEFT" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_LEFT);
-            case "DOWN" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_DOWN);
-            case "UP" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_UP);
-            case "PAGE_UP" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_PAGE_UP);
-            case "PAGE_DOWN" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_PAGE_DOWN);
-            case "HOME" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_HOME);
-            case "END" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_END);
-            case "ESCAPE" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_ESCAPE);
-            case "CAPS_LOCK" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_CAPS_LOCK);
-            case "SCROLL_LOCK" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_SCROLL_LOCK);
-            case "NUM_LOCK" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_NUM_LOCK);
-            case "PRINT_SCREEN" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_PRINT_SCREEN);
-            case "PAUSE" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_PAUSE);
-            case "SCROLL_LOCK_EXTRA" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_SCROLL_LOCK);
+            case "SPACE" -> KEYBOARD_TYPE.getOrCreate(GLFW.GLFW_KEY_SPACE);
+            case "ENTER" -> KEYBOARD_TYPE.getOrCreate(GLFW.GLFW_KEY_ENTER);
+            case "TAB" -> KEYBOARD_TYPE.getOrCreate(GLFW.GLFW_KEY_TAB);
+            case "BACKSPACE" -> KEYBOARD_TYPE.getOrCreate(GLFW.GLFW_KEY_BACKSPACE);
+            case "INSERT" -> KEYBOARD_TYPE.getOrCreate(GLFW.GLFW_KEY_INSERT);
+            case "DELETE" -> KEYBOARD_TYPE.getOrCreate(GLFW.GLFW_KEY_DELETE);
+            case "RIGHT" -> KEYBOARD_TYPE.getOrCreate(GLFW.GLFW_KEY_RIGHT);
+            case "LEFT" -> KEYBOARD_TYPE.getOrCreate(GLFW.GLFW_KEY_LEFT);
+            case "DOWN" -> KEYBOARD_TYPE.getOrCreate(GLFW.GLFW_KEY_DOWN);
+            case "UP" -> KEYBOARD_TYPE.getOrCreate(GLFW.GLFW_KEY_UP);
+            case "PAGE_UP" -> KEYBOARD_TYPE.getOrCreate(GLFW.GLFW_KEY_PAGE_UP);
+            case "PAGE_DOWN" -> KEYBOARD_TYPE.getOrCreate(GLFW.GLFW_KEY_PAGE_DOWN);
+            case "HOME" -> KEYBOARD_TYPE.getOrCreate(GLFW.GLFW_KEY_HOME);
+            case "END" -> KEYBOARD_TYPE.getOrCreate(GLFW.GLFW_KEY_END);
+            case "ESCAPE" -> KEYBOARD_TYPE.getOrCreate(GLFW.GLFW_KEY_ESCAPE);
+            case "CAPS_LOCK" -> KEYBOARD_TYPE.getOrCreate(GLFW.GLFW_KEY_CAPS_LOCK);
+            case "SCROLL_LOCK" -> KEYBOARD_TYPE.getOrCreate(GLFW.GLFW_KEY_SCROLL_LOCK);
+            case "NUM_LOCK" -> KEYBOARD_TYPE.getOrCreate(GLFW.GLFW_KEY_NUM_LOCK);
+            case "PRINT_SCREEN" -> KEYBOARD_TYPE.getOrCreate(GLFW.GLFW_KEY_PRINT_SCREEN);
+            case "PAUSE" -> KEYBOARD_TYPE.getOrCreate(GLFW.GLFW_KEY_PAUSE);
+            case "SCROLL_LOCK_EXTRA" -> KEYBOARD_TYPE.getOrCreate(GLFW.GLFW_KEY_SCROLL_LOCK);
 
             // Numpad
-            case "KP_0", "NUMPAD_0" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_KP_0);
-            case "KP_1", "NUMPAD_1" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_KP_1);
-            case "KP_2", "NUMPAD_2" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_KP_2);
-            case "KP_3", "NUMPAD_3" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_KP_3);
-            case "KP_4", "NUMPAD_4" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_KP_4);
-            case "KP_5", "NUMPAD_5" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_KP_5);
-            case "KP_6", "NUMPAD_6" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_KP_6);
-            case "KP_7", "NUMPAD_7" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_KP_7);
-            case "KP_8", "NUMPAD_8" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_KP_8);
-            case "KP_9", "NUMPAD_9" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_KP_9);
-            case "KP_ADD", "NUMPAD_ADD" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_KP_ADD);
-            case "KP_DECIMAL", "NUMPAD_DECIMAL" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_KP_DECIMAL);
-            case "KP_DIVIDE", "NUMPAD_DIVIDE" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_KP_DIVIDE);
-            case "KP_ENTER", "NUMPAD_ENTER" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_KP_ENTER);
-            case "KP_EQUAL", "NUMPAD_EQUAL" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_KP_EQUAL);
-            case "KP_MULTIPLY", "NUMPAD_MULTIPLY" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_KP_MULTIPLY);
-            case "KP_SUBTRACT", "NUMPAD_SUBTRACT" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_KP_SUBTRACT);
+            case "KP_0", "NUMPAD_0" -> KEYBOARD_TYPE.getOrCreate(GLFW.GLFW_KEY_KP_0);
+            case "KP_1", "NUMPAD_1" -> KEYBOARD_TYPE.getOrCreate(GLFW.GLFW_KEY_KP_1);
+            case "KP_2", "NUMPAD_2" -> KEYBOARD_TYPE.getOrCreate(GLFW.GLFW_KEY_KP_2);
+            case "KP_3", "NUMPAD_3" -> KEYBOARD_TYPE.getOrCreate(GLFW.GLFW_KEY_KP_3);
+            case "KP_4", "NUMPAD_4" -> KEYBOARD_TYPE.getOrCreate(GLFW.GLFW_KEY_KP_4);
+            case "KP_5", "NUMPAD_5" -> KEYBOARD_TYPE.getOrCreate(GLFW.GLFW_KEY_KP_5);
+            case "KP_6", "NUMPAD_6" -> KEYBOARD_TYPE.getOrCreate(GLFW.GLFW_KEY_KP_6);
+            case "KP_7", "NUMPAD_7" -> KEYBOARD_TYPE.getOrCreate(GLFW.GLFW_KEY_KP_7);
+            case "KP_8", "NUMPAD_8" -> KEYBOARD_TYPE.getOrCreate(GLFW.GLFW_KEY_KP_8);
+            case "KP_9", "NUMPAD_9" -> KEYBOARD_TYPE.getOrCreate(GLFW.GLFW_KEY_KP_9);
+            case "KP_ADD", "NUMPAD_ADD" -> KEYBOARD_TYPE.getOrCreate(GLFW.GLFW_KEY_KP_ADD);
+            case "KP_DECIMAL", "NUMPAD_DECIMAL" -> KEYBOARD_TYPE.getOrCreate(GLFW.GLFW_KEY_KP_DECIMAL);
+            case "KP_DIVIDE", "NUMPAD_DIVIDE" -> KEYBOARD_TYPE.getOrCreate(GLFW.GLFW_KEY_KP_DIVIDE);
+            case "KP_ENTER", "NUMPAD_ENTER" -> KEYBOARD_TYPE.getOrCreate(GLFW.GLFW_KEY_KP_ENTER);
+            case "KP_EQUAL", "NUMPAD_EQUAL" -> KEYBOARD_TYPE.getOrCreate(GLFW.GLFW_KEY_KP_EQUAL);
+            case "KP_MULTIPLY", "NUMPAD_MULTIPLY" -> KEYBOARD_TYPE.getOrCreate(GLFW.GLFW_KEY_KP_MULTIPLY);
+            case "KP_SUBTRACT", "NUMPAD_SUBTRACT" -> KEYBOARD_TYPE.getOrCreate(GLFW.GLFW_KEY_KP_SUBTRACT);
 
             // Modifiers
-            case "LEFT_SHIFT", "SHIFT" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_LEFT_SHIFT);
-            case "RIGHT_SHIFT" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_RIGHT_SHIFT);
-            case "LEFT_CONTROL", "LEFT_CTRL", "CONTROL", "CTRL" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_LEFT_CONTROL);
-            case "RIGHT_CONTROL" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_RIGHT_CONTROL);
-            case "LEFT_ALT", "ALT" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_LEFT_ALT);
-            case "RIGHT_ALT" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_RIGHT_ALT);
-            case "LEFT_SUPER", "SUPER", "WINDOWS", "CMD" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_LEFT_SUPER);
-            case "RIGHT_SUPER" -> InputConstants.Type.KEYSYM.getOrCreate(GLFW.GLFW_KEY_RIGHT_SUPER);
+            case "LEFT_SHIFT", "SHIFT" -> KEYBOARD_TYPE.getOrCreate(GLFW.GLFW_KEY_LEFT_SHIFT);
+            case "RIGHT_SHIFT" -> KEYBOARD_TYPE.getOrCreate(GLFW.GLFW_KEY_RIGHT_SHIFT);
+            case "LEFT_CONTROL", "LEFT_CTRL", "CONTROL", "CTRL" -> KEYBOARD_TYPE.getOrCreate(GLFW.GLFW_KEY_LEFT_CONTROL);
+            case "RIGHT_CONTROL" -> KEYBOARD_TYPE.getOrCreate(GLFW.GLFW_KEY_RIGHT_CONTROL);
+            case "LEFT_ALT", "ALT" -> KEYBOARD_TYPE.getOrCreate(GLFW.GLFW_KEY_LEFT_ALT);
+            case "RIGHT_ALT" -> KEYBOARD_TYPE.getOrCreate(GLFW.GLFW_KEY_RIGHT_ALT);
+            case "LEFT_SUPER", "SUPER", "WINDOWS", "CMD" -> KEYBOARD_TYPE.getOrCreate(GLFW.GLFW_KEY_LEFT_SUPER);
+            case "RIGHT_SUPER" -> KEYBOARD_TYPE.getOrCreate(GLFW.GLFW_KEY_RIGHT_SUPER);
 
             default -> {
                 // Try literal key name (single char)
                 if (name.length() == 1) {
                     int code = name.charAt(0);
                     try {
-                        yield InputConstants.Type.KEYSYM.getOrCreate(code);
+                        yield KEYBOARD_TYPE.getOrCreate(code);
                     } catch (Exception ignored) {}
                 }
                 yield InputConstants.UNKNOWN;

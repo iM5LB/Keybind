@@ -3,6 +3,7 @@ package com.keybind.mod;
 import com.keybind.mod.common.KeybindConstants;
 import com.keybind.mod.network.KeybindActionPayload;
 import com.keybind.mod.network.KeybindCapturePayload;
+import com.keybind.mod.network.KeybindHelloPayload;
 import com.keybind.mod.network.KeybindSyncPayload;
 import java.util.function.Consumer;
 import net.minecraft.resources.ResourceLocation;
@@ -26,6 +27,7 @@ public final class KeybindMod {
         // Optional payloads allow connecting to Paper/vanilla servers that use plugin messaging.
         PayloadRegistrar registrar = event.registrar("1").optional();
         registrar.playToServer(KeybindActionPayload.TYPE, KeybindActionPayload.STREAM_CODEC, (payload, context) -> { });
+        registrar.playToServer(KeybindHelloPayload.TYPE, KeybindHelloPayload.STREAM_CODEC, (payload, context) -> { });
         registrar.playToClient(KeybindSyncPayload.TYPE, KeybindSyncPayload.STREAM_CODEC, (payload, context) -> syncReceiver.accept(payload));
         registrar.playToClient(KeybindCapturePayload.TYPE, KeybindCapturePayload.STREAM_CODEC, (payload, context) -> captureReceiver.run());
     }

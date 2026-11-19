@@ -1,0 +1,72 @@
+plugins {
+    id 'fabric-loom' version "${loom_version}"
+    id 'java-library'
+}
+
+version = project.version
+group = project.group
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+loom {
+}
+
+dependencies {
+    api project(':common')
+    minecraft "com.mojang:minecraft:${project.minecraft_version}"
+    mappings loom.officialMojangMappings()
+
+    // fabric-loader only: provides ModInitializer/ClientModInitializer and
+    // FabricLoader (config dir). No Fabric API - networking is done through
+    // vanilla custom payloads + mixins so Quilt users need a single jar.
+    modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
+}
+
+// Share all loader-agnostic Fabric sources; the three Fabric-API entrypoints
+// are excluded and replaced by vanilla/mixin implementations in this module.
+def prepareSharedSources = tasks.register('prepareSharedSources', Sync) {
+    from('../../fabric/1.21/src/main/java') {
+        exclude 'com/keybind/mod/KeybindMod.java'
+        exclude 'com/keybind/mod/client/KeybindModClient.java'
+        exclude 'com/keybind/mod/network/KeybindNet.java'
+    }
+    into layout.buildDirectory.dir('generated/shared/java')
+}
+
+sourceSets.main.java.srcDir(layout.buildDirectory.dir('generated/shared/java'))
+
+tasks.named('compileJava') {
+    dependsOn prepareSharedSources
+}
+
+processResources {
+    inputs.property 'version', project.version
+    filteringCharset 'UTF-8'
+
+    filesMatching('fabric.mod.json') {
+        expand version: project.version
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.release = 21
+}
+
+jar {
+    dependsOn project(':common').tasks.named('classes')
+    from(project(':common').sourceSets.main.output)
+    archiveBaseName.set('Quilt-Keybind-1.21')
+}
+
+remapJar {
+    archiveBaseName.set('Quilt-Keybind-1.21')
+}

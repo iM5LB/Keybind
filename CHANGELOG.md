@@ -1,5 +1,24 @@
 # Changelog
 
+## 1.0.5
+
+### Quilt (New)
+- **Native Quilt builds**: Dedicated `quilt/` modules for Minecraft 1.21 and 26.x — no Fabric API required.
+- Vanilla custom-payload transport via codec registration mixins, packet listener mixins, and `minecraft:register` channel announcement for Paper/ViaVersion compatibility.
+
+### Fixes & Reliability
+- **MC 26.3 Crash**: Resolved `NoSuchFieldError` on `InputConstants.Type.KEYSYM` (renamed to `KEYBOARD` in 26.3) with a reflective cross-version resolver shared by all loaders.
+- **NeoForge/Forge Hello Retry**: Hello packet is now only marked sent after a successful send; failures are logged and retried instead of silently swallowed.
+- **Duplicate Sync Message**: Repeat sync packets (early-join resend) no longer spam the `[Keybind] Synced` chat — it only shows on first sync or when actions change.
+- **Sync Delivery**: Server resends sync ~1 second after hello (Folia-safe scheduler) to cover early-join packet loss; sync is only sent to clients that announced the mod.
+- **Controls Category Order**: The **Keybind Actions** category now appears at the top of Settings → Controls on all loaders and versions.
+
+### Plugin
+- **Folia Support**: Sync scheduling works on both Paper and Folia via a reflective scheduler compatibility layer.
+- **Compatibility Gating**: Plugin messages are only sent to players who sent the keybind hello — vanilla clients receive nothing.
+- **Diagnostics**: Hello receipt and sync sends are logged for troubleshooting.
+- **bStats**: Corrected metrics ID to the registered `Keybinds` project (34789).
+
 ## 1.0.4
 
 ### Fixes & Reliability

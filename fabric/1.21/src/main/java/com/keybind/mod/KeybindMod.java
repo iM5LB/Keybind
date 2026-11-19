@@ -3,6 +3,7 @@ package com.keybind.mod;
 import com.keybind.mod.common.KeybindConstants;
 import com.keybind.mod.network.KeybindActionPayload;
 import com.keybind.mod.network.KeybindCapturePayload;
+import com.keybind.mod.network.KeybindHelloPayload;
 import com.keybind.mod.network.KeybindSyncPayload;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
@@ -50,6 +51,11 @@ public class KeybindMod implements ModInitializer {
         PayloadTypeRegistry.playS2C().register(
                 KeybindCapturePayload.TYPE,
                 KeybindCapturePayload.STREAM_CODEC
+        );
+
+        PayloadTypeRegistry.playC2S().register(
+                KeybindHelloPayload.TYPE,
+                KeybindHelloPayload.STREAM_CODEC
         );
 
         LOGGER.info("Keybind initialized.");

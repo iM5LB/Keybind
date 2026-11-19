@@ -48,8 +48,8 @@ public class PacketListener implements PluginMessageListener {
 
         plugin.getLogger().fine("Packet from " + player.getName() + ": action=" + actionName);
 
-        plugin.getServer().getScheduler().runTask(plugin, () -> {
-            actionExecutor.execute(player, actionName);
-        });
+        // A valid action packet proves the client has the mod.
+        plugin.getSyncSender().markModded(player);
+        SchedulerCompat.run(player, plugin, () -> actionExecutor.execute(player, actionName));
     }
 }

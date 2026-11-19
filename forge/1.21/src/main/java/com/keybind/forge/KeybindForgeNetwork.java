@@ -1,5 +1,7 @@
 package com.keybind.forge;
 
+import com.keybind.forge.KeybindForge;
+
 import com.keybind.mod.common.KeybindSyncData;
 import com.keybind.mod.common.network.KeybindPacketCodec;
 import io.netty.buffer.Unpooled;
@@ -18,8 +20,10 @@ public final class KeybindForgeNetwork {
     private static final EventNetworkChannel ACTION = ChannelBuilder.named(ResourceLocation.fromNamespaceAndPath("keybind", "main")).optional().eventNetworkChannel();
     private static final EventNetworkChannel SYNC = ChannelBuilder.named(ResourceLocation.fromNamespaceAndPath("keybind", "sync")).optional().eventNetworkChannel();
     private static final EventNetworkChannel CAPTURE = ChannelBuilder.named(ResourceLocation.fromNamespaceAndPath("keybind", "capture")).optional().eventNetworkChannel();
+    private static final EventNetworkChannel HELLO = ChannelBuilder.named(ResourceLocation.fromNamespaceAndPath("keybind", "hello")).optional().eventNetworkChannel();
     private static Consumer<KeybindSyncData> syncReceiver = ignored -> { };
     private static Runnable captureReceiver = () -> { };
+    private static Object lastHelloConnection;
 
     private KeybindForgeNetwork() { }
 
@@ -59,6 +63,28 @@ public final class KeybindForgeNetwork {
             buffer.writeBytes(KeybindPacketCodec.encodeAction(action));
             ACTION.send(buffer, PacketDistributor.SERVER.noArg());
         } catch (Throwable ignored) {
+        }
+    }
+
+    /**
+     * Announces the mod to the server once per connection so the plugin only
+     * sends sync/capture packets to clients that actually have it.
+     */
+    public static void maybeSendHello() {
+        Minecraft client = Minecraft.getInstance();
+        Object connection = client.getConnection();
+        if (connection == null || client.player == null) {
+            lastHelloConnection = null;
+            return;
+        }
+        if (connection == lastHelloConnection) {
+            return;
+        }
+        try {
+            HELLO.send(new FriendlyByteBuf(Unpooled.buffer()), PacketDistributor.SERVER.noArg());
+            lastHelloConnection = connection;
+        } catch (Throwable t) {
+            KeybindForge.LOGGER.warn("Failed to send keybind hello, will retry: {}", t.toString());
         }
     }
 

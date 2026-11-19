@@ -1,6 +1,7 @@
 package com.keybind.plugin.update;
 
 import com.keybind.plugin.KeybindPlugin;
+import com.keybind.plugin.SchedulerCompat;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.event.ClickEvent;
 import net.kyori.adventure.text.event.HoverEvent;
@@ -44,7 +45,7 @@ public final class UpdateChecker implements Listener {
             return;
         }
 
-        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+        SchedulerCompat.runAsync(plugin, () -> {
             try {
                 HttpURLConnection conn = (HttpURLConnection) new URL(GITHUB_API_URL).openConnection();
                 conn.setRequestMethod("GET");
@@ -132,11 +133,11 @@ public final class UpdateChecker implements Listener {
         Player player = event.getPlayer();
         if (player.hasPermission("keybind.admin") && updateAvailable.get()) {
             // Slight delay so chat loads properly on player join
-            Bukkit.getScheduler().runTaskLater(plugin, () -> {
+            SchedulerCompat.runLater(player, plugin, 40L, () -> {
                 if (player.isOnline()) {
                     notifyAdmin(player);
                 }
-            }, 40L);
+            });
         }
     }
 

@@ -30,6 +30,11 @@ public final class KeyCaptureService implements PluginMessageListener, Listener 
 
     public void request(Player player, KeyCaptureDraft draft) {
         pending.put(player.getUniqueId(), draft);
+        if (!plugin.getSyncSender().isModded(player.getUniqueId())) {
+            pending.remove(player.getUniqueId());
+            openFallback(player, draft);
+            return;
+        }
         try {
             player.sendPluginMessage(
                     plugin,
@@ -39,16 +44,20 @@ public final class KeyCaptureService implements PluginMessageListener, Listener 
         } catch (IOException e) {
             pending.remove(player.getUniqueId());
             player.sendMessage(Component.text("Could not start key capture.", NamedTextColor.RED));
-            if (KeybindDialogs.isSupported()) {
-                KeybindDialogs.resumeAfterCapture(player, plugin, draft, draft.defaultKey);
-            } else {
-                com.keybind.plugin.gui.KeybindInventoryMenu.open(player, plugin, draft.page);
-            }
+            openFallback(player, draft);
             return;
         }
 
         player.sendActionBar(Component.text("Press a key to set the default bind. ESC cancels.", NamedTextColor.YELLOW));
-        plugin.getServer().getScheduler().runTaskLater(plugin, () -> timeout(player.getUniqueId()), TIMEOUT_TICKS);
+        SchedulerCompat.runLater(player, plugin, TIMEOUT_TICKS, () -> timeout(player.getUniqueId()));
+    }
+
+    private void openFallback(Player player, KeyCaptureDraft draft) {
+        if (KeybindDialogs.isSupported()) {
+            KeybindDialogs.resumeAfterCapture(player, plugin, draft, draft.defaultKey);
+        } else {
+            com.keybind.plugin.gui.KeybindInventoryMenu.open(player, plugin, draft.page);
+        }
     }
 
     public void complete(Player player, String keyName) {
@@ -90,7 +99,8 @@ public final class KeyCaptureService implements PluginMessageListener, Listener 
             plugin.getLogger().warning("Invalid capture packet from " + player.getName());
             return;
         }
-        plugin.getServer().getScheduler().runTask(plugin, () -> complete(player, keyName));
+        plugin.getSyncSender().markModded(player);
+        SchedulerCompat.run(player, plugin, () -> complete(player, keyName));
     }
 
     @EventHandler

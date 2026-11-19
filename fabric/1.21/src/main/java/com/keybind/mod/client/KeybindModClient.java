@@ -2,6 +2,7 @@ package com.keybind.mod.client;
 
 import com.keybind.mod.KeybindMod;
 import com.keybind.mod.network.KeybindCapturePayload;
+import com.keybind.mod.network.KeybindHelloPayload;
 import com.keybind.mod.network.KeybindSyncPayload;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
@@ -16,6 +17,7 @@ import net.minecraft.client.multiplayer.ServerData;
 public class KeybindModClient implements ClientModInitializer {
 
     private KeybindManager keybindManager;
+    private boolean helloSent;
 
     @Override
     public void onInitializeClient() {
@@ -60,10 +62,18 @@ public class KeybindModClient implements ClientModInitializer {
 
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
             keybindManager.onDisconnect();
+            helloSent = false;
             KeybindMod.LOGGER.info("Disconnected — keybinds cleared.");
         });
 
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
+            // Announce the mod once per connection, only if the server
+            // advertised the hello channel (i.e. the Keybind plugin is installed).
+            if (!helloSent && client.player != null
+                    && ClientPlayNetworking.canSend(KeybindHelloPayload.TYPE)) {
+                ClientPlayNetworking.send(new KeybindHelloPayload());
+                helloSent = true;
+            }
             keybindManager.tick(client);
         });
 

@@ -1,5 +1,6 @@
 package com.keybind.plugin;
 
+import com.keybind.mod.common.KeybindConstants;
 import com.keybind.plugin.metrics.Metrics;
 import org.bukkit.event.Listener;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -7,7 +8,7 @@ import org.bukkit.plugin.messaging.Messenger;
 
 public final class KeybindPlugin extends JavaPlugin {
 
-    private static final int BSTATS_PLUGIN_ID = 25110;
+    private static final int BSTATS_PLUGIN_ID = 34789;
 
     private ConfigManager configManager;
     private ActionExecutor actionExecutor;
@@ -39,9 +40,11 @@ public final class KeybindPlugin extends JavaPlugin {
 
         messenger.registerIncomingPluginChannel(this, channel, new PacketListener(this, actionExecutor));
         messenger.registerIncomingPluginChannel(this, captureChannel, keyCaptureService);
+        messenger.registerIncomingPluginChannel(this, KeybindConstants.HELLO_CHANNEL, syncSender);
         messenger.registerOutgoingPluginChannel(this, channel);
         messenger.registerOutgoingPluginChannel(this, syncChannel);
         messenger.registerOutgoingPluginChannel(this, captureChannel);
+        messenger.registerOutgoingPluginChannel(this, KeybindConstants.HELLO_CHANNEL);
 
         getServer().getPluginManager().registerEvents(syncSender, this);
         getServer().getPluginManager().registerEvents(keyCaptureService, this);
@@ -72,9 +75,11 @@ public final class KeybindPlugin extends JavaPlugin {
         Messenger messenger = getServer().getMessenger();
         messenger.unregisterIncomingPluginChannel(this, configManager.getChannel());
         messenger.unregisterIncomingPluginChannel(this, configManager.getCaptureChannel());
+        messenger.unregisterIncomingPluginChannel(this, KeybindConstants.HELLO_CHANNEL);
         messenger.unregisterOutgoingPluginChannel(this, configManager.getChannel());
         messenger.unregisterOutgoingPluginChannel(this, configManager.getSyncChannel());
         messenger.unregisterOutgoingPluginChannel(this, configManager.getCaptureChannel());
+        messenger.unregisterOutgoingPluginChannel(this, KeybindConstants.HELLO_CHANNEL);
         getLogger().info("Keybind plugin disabled.");
     }
 

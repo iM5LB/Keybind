@@ -40,7 +40,7 @@ public final class KeybindDialogListener implements Listener {
         DialogResponseView view = event.getDialogResponseView();
         BinaryTagHolder tag = event.getTag();
 
-        plugin.getServer().getScheduler().runTask(plugin, () -> handle(player, id, view, tag));
+        com.keybind.plugin.SchedulerCompat.run(player, plugin, () -> handle(player, id, view, tag));
     }
 
     private void handle(Player player, Key id, DialogResponseView view, BinaryTagHolder tag) {

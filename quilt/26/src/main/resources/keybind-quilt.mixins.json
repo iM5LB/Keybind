@@ -1,0 +1,16 @@
+{
+  "required": true,
+  "package": "com.keybind.mod.mixin",
+  "compatibilityLevel": "JAVA_25",
+  "client": [
+    "LanguageMixin",
+    "ClientboundPayloadCodecMixin",
+    "ServerboundPayloadCodecMixin",
+    "ClientPacketListenerPayloadMixin",
+    "ClientCommonPayloadPacketMixin",
+    "MinecraftTickMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}
