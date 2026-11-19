@@ -2,21 +2,13 @@
 
 Bind keys to server-side commands. Press a key, the server runs a command.
 
-[![bStats Servers](https://img.shields.io/bstats/servers/34789?style=flat&label=bStats%20Servers)](https://bstats.org/plugin/bukkit/Keybinds/34789)
-[![bStats Players](https://img.shields.io/bstats/players/34789?style=flat&label=bStats%20Players)](https://bstats.org/plugin/bukkit/Keybinds/34789)
+<p>
+  <a href="https://modrinth.com/plugin/keybind"><img src="https://raw.githubusercontent.com/iM5LB/Keybind/main/assets/badges/modrinth.png" alt="Available on Modrinth" height="56"></a>
+  <a href="https://github.com/iM5LB/Keybind"><img src="https://raw.githubusercontent.com/iM5LB/Keybind/main/assets/badges/github.png" alt="Source on GitHub" height="56"></a>
+  <a href="https://bstats.org/plugin/bukkit/Keybinds/34789"><img src="https://raw.githubusercontent.com/iM5LB/Keybind/main/assets/badges/bstats.png" alt="Metrics by bStats" height="56"></a>
+</p>
 
-**[Client Mod (Fabric)](https://modrinth.com/plugin/keybind/versions?l=fabric)** • **[Server Plugin (Paper)](https://modrinth.com/plugin/keybind/versions?l=bukkit)**
-
-| Environment | Loader | MC Version | Status |
-| :--- | :--- | :--- | :--- |
-| Client | Fabric | 1.21.x, 26.x | Released |
-| Server | Paper | 1.18.2+ | Released |
-| Client | NeoForge | 1.21.x, 26.x | Released |
-| Client | Forge | 1.21.x, 26.x | Released |
-| Client | Quilt | 1.21.x, 26.x | Released |
-
-> **Note**: Both the **Server Plugin** and the matching **Client Mod** must be installed for keybinds to function. On servers without the plugin, no keybinds will be registered or available.
-> **Quilt**: Dedicated Quilt builds are available — a single jar with **no Fabric API required**.
+> **Note**: Both the [**Server Plugin**](https://modrinth.com/plugin/keybind/versions?l=bukkit) and the matching [**Client Mod**](https://modrinth.com/plugin/keybind/versions?l=fabric) must be installed for keybinds to function. On servers without the plugin, no keybinds will be registered or available.
 
 ---
 
