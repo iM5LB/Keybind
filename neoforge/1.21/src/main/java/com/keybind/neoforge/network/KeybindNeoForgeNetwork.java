@@ -4,7 +4,7 @@ import com.keybind.mod.KeybindMod;
 
 import com.keybind.mod.network.KeybindHelloPayload;
 import net.minecraft.client.Minecraft;
-import net.neoforged.neoforge.network.PacketDistributor;
+import net.minecraft.network.protocol.common.ServerboundCustomPayloadPacket;
 
 public final class KeybindNeoForgeNetwork {
     private static Object lastHelloConnection;
@@ -40,7 +40,7 @@ public final class KeybindNeoForgeNetwork {
             return;
         }
         try {
-            PacketDistributor.sendToServer(new KeybindHelloPayload());
+            client.getConnection().send(new ServerboundCustomPayloadPacket(new KeybindHelloPayload()));
             lastHelloConnection = connection;
         } catch (Throwable t) {
             KeybindMod.LOGGER.warn("Failed to send keybind hello, will retry: {}", t.toString());
