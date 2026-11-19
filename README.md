@@ -8,7 +8,7 @@ Bind keys to server-side commands. Press a key, the server runs a command.
   <a href="https://bstats.org/plugin/bukkit/Keybinds/34789"><img src="https://raw.githubusercontent.com/iM5LB/Keybind/main/assets/badges/bstats.png" alt="Metrics by bStats" height="56"></a>
 </p>
 
-> **Note**: Both the [**Server Plugin**](https://modrinth.com/plugin/keybind/versions?l=bukkit) and the matching [**Client Mod**](https://modrinth.com/plugin/keybind/versions?l=fabric) must be installed for keybinds to function. On servers without the plugin, no keybinds will be registered or available.
+> **Note**: Both the [**Server Plugin**](https://modrinth.com/plugin/keybind/versions?l=bukkit) and the matching [**Client Mod**](https://modrinth.com/plugin/keybind/versions?l=fabric&l=forge&l=neoforge&l=quilt) must be installed for keybinds to function. On servers without the plugin, no keybinds will be registered or available.
 
 ---
 
